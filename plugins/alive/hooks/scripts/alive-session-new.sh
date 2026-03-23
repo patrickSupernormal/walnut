@@ -152,13 +152,18 @@ SETTINGSEOF
 elif ! grep -q '"statusLine"' "$SETTINGS_FILE" 2>/dev/null; then
   # settings.json exists but has no statusLine — inject it
   if command -v python3 &>/dev/null; then
-    python3 -c "
-import json, sys
-with open('$SETTINGS_FILE') as f:
-    data = json.load(f)
+    ALIVE_SETTINGS_FILE="$SETTINGS_FILE" python3 -c "
+import json, os, sys
+sf = os.environ['ALIVE_SETTINGS_FILE']
+try:
+    with open(sf) as f:
+        data = json.load(f)
+except (json.JSONDecodeError, ValueError):
+    print('ALIVE: settings.json is malformed, cannot inject statusLine', file=sys.stderr)
+    sys.exit(0)
 if 'statusLine' not in data:
     data['statusLine'] = {'type': 'command', 'command': '.alive/statusline.sh'}
-    with open('$SETTINGS_FILE', 'w') as f:
+    with open(sf, 'w') as f:
         json.dump(data, f, indent=2)
         f.write('\n')
 " 2>/dev/null || true

@@ -1,5 +1,5 @@
 {
-  "description": "ALIVE v1.0.1-beta — 13 hooks. Session hooks read/write .alive/_squirrels/. All read stdin JSON for session_id.",
+  "description": "ALIVE v1.0.1-beta — 14 hooks. Session hooks read/write .alive/_squirrels/. All read stdin JSON for session_id.",
   "hooks": {
     "SessionStart": [
       {

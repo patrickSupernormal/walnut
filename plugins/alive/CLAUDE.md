@@ -25,7 +25,7 @@ When a walnut is active, read these in order before responding:
 5. `_core/log.md` — frontmatter, then first ~100 lines
 6. `.alive/_squirrels/` — scan for unsaved entries
 7. `_core/_capsules/` — companion frontmatter only
-9. `.alive/preferences.yaml` — full (if exists)
+8. `.alive/preferences.yaml` — full (if exists)
 
 Do not respond about a walnut without reading its core files. Never guess at file contents.
 
@@ -44,13 +44,14 @@ Do not respond about a walnut without reading its core files. Never guess at fil
 
 ---
 
-## Twelve Skills
+## Thirteen Skills
 
 ```
 /alive:world      see your world
 /alive:load       load a walnut (prev. open)
 /alive:save       checkpoint — route stash, update state
 /alive:capture    context in — store, route
+/alive:capsule    create, share, graduate capsules
 /alive:find       search across walnuts
 /alive:create     scaffold a new walnut
 /alive:tidy       system maintenance

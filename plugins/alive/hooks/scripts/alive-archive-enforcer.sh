@@ -36,15 +36,16 @@ while IFS= read -r path; do
     "$WORLD_ROOT"|"$WORLD_ROOT"/*)
       # Rename to (Marked for Deletion) instead of blocking
       if [ -e "$resolved" ]; then
-        BASENAME=$(basename "$resolved")
         DIRNAME=$(dirname "$resolved")
+        BASENAME=$(basename "$resolved")
         MARKED="${DIRNAME}/${BASENAME} (Marked for Deletion)"
-        python3 -c "import os; os.rename('$resolved', '$MARKED')" 2>/dev/null || true
-        # Open containing folder in Finder
+        python3 -c "import os,sys; os.rename(sys.argv[1], sys.argv[2])" "$resolved" "$MARKED" 2>/dev/null || true
         open "$DIRNAME" 2>/dev/null || true
+        REASON="Renamed to (Marked for Deletion). Review in Finder and delete manually if intended."
+      else
+        REASON="Deletion blocked inside ALIVE world. File not found at path — may already be removed."
       fi
-      REASON="Renamed to (Marked for Deletion) at: ${resolved}. Review in Finder and delete manually if intended."
-      REASON_ESCAPED=$(echo "$REASON" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip()))" 2>/dev/null || echo "\"Renamed to Marked for Deletion\"")
+      REASON_ESCAPED=$(echo "$REASON" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip()))" 2>/dev/null || echo "\"Deletion blocked inside ALIVE world.\"")
       echo "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":${REASON_ESCAPED}}}"
       exit 0
       ;;

@@ -20,6 +20,48 @@ PREFS=$(resolve_preferences "$WORLD_ROOT")
 # Plugin root for reading rules
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 
+# Self-heal: ensure statusline script is current
+STATUSLINE_SRC="$PLUGIN_ROOT/statusline/alive-statusline.sh"
+STATUSLINE_DST="$WORLD_ROOT/.alive/statusline.sh"
+if [ -f "$STATUSLINE_SRC" ]; then
+  if [ ! -f "$STATUSLINE_DST" ] || ! cmp -s "$STATUSLINE_SRC" "$STATUSLINE_DST"; then
+    cp "$STATUSLINE_SRC" "$STATUSLINE_DST"
+    chmod +x "$STATUSLINE_DST"
+  fi
+fi
+
+# Self-heal: ensure .claude/settings.json has statusline configured
+SETTINGS_DIR="$WORLD_ROOT/.claude"
+SETTINGS_FILE="$SETTINGS_DIR/settings.json"
+mkdir -p "$SETTINGS_DIR"
+if [ ! -f "$SETTINGS_FILE" ]; then
+  cat > "$SETTINGS_FILE" << 'SETTINGSEOF'
+{
+  "statusLine": {
+    "type": "command",
+    "command": ".alive/statusline.sh"
+  }
+}
+SETTINGSEOF
+elif ! grep -q '"statusLine"' "$SETTINGS_FILE" 2>/dev/null; then
+  if command -v python3 &>/dev/null; then
+    ALIVE_SETTINGS_FILE="$SETTINGS_FILE" python3 -c "
+import json, os, sys
+sf = os.environ['ALIVE_SETTINGS_FILE']
+try:
+    with open(sf) as f:
+        data = json.load(f)
+except (json.JSONDecodeError, ValueError):
+    sys.exit(0)
+if 'statusLine' not in data:
+    data['statusLine'] = {'type': 'command', 'command': '.alive/statusline.sh'}
+    with open(sf, 'w') as f:
+        json.dump(data, f, indent=2)
+        f.write('\n')
+" 2>/dev/null || true
+  fi
+fi
+
 # Build runtime rules from plugin source files (same as session-new)
 RUNTIME_RULES=""
 RULE_COUNT=0

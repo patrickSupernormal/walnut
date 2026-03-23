@@ -155,9 +155,9 @@ For each the human picks, propose the specific fix:
 ```
 ╭─ 🐿️ proposed fixes
 │
-│  1. Add [[will-bainbridge]], [[ben-obrien]] to berties key.md links:
-│  3. Move AGENTS.md → alive-os/_core/_capsules/_inbox/raw/,
-│     delete disaster-recovery-extraction.md
+│  1. Add [[ryn-okata]], [[elara-voss]] to nova-station key.md links:
+│  3. Move AGENTS.md → walnut/_core/_capsules/_inbox/raw/,
+│     archive stale-extraction.md
 │
 │  → go / change something / skip
 ╰─
@@ -389,9 +389,9 @@ For each the human picks, propose the specific fix:
 ```
 ╭─ 🐿️ proposed fixes
 │
-│  1. Add [[will-bainbridge]], [[ben-obrien]], [[jono-georgakopoulos]],
-│     [[donnie]] to berties `_core/key.md` frontmatter links: field
-│  3. Move "Send post-CNY message" to Urgent, flag "Ben record Part 2
+│  1. Add [[ryn-okata]], [[jax-stellara]], [[attila-mora]],
+│     [[luna-thresh]] to nova-station `_core/key.md` frontmatter links: field
+│  3. Move "Send launch invite" to Urgent, flag "Record safety briefing
 │     narration" as 12 days to deadline
 │
 │  → go / change something / skip

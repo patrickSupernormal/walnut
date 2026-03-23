@@ -504,8 +504,7 @@ For each walnut in the list:
 ```
 {{domain}}/{{slug}}/
 {{domain}}/{{slug}}/_core/
-{{domain}}/{{slug}}/_core/_working/
-{{domain}}/{{slug}}/_core/_references/
+{{domain}}/{{slug}}/_core/_capsules/
 ```
 
 **Create walnut files from templates:**
@@ -547,8 +546,7 @@ For each person in the list:
 ```
 02_Life/people/{{slug}}/
 02_Life/people/{{slug}}/_core/
-02_Life/people/{{slug}}/_core/_working/
-02_Life/people/{{slug}}/_core/_references/
+02_Life/people/{{slug}}/_core/_capsules/
 ```
 
 **Create walnut files from templates:**
@@ -622,8 +620,7 @@ Display this summary. Fill in actual values for every placeholder.
 | `[walnut]/_core/log.md` | Prepend-only event spine |
 | `[walnut]/_core/tasks.md` | Work queue |
 | `[walnut]/_core/insights.md` | Evergreen domain knowledge |
-| `[walnut]/_core/_working/` | Scratch space for in-progress work |
-| `[walnut]/_core/_references/` | Captured external content |
+| `[walnut]/_core/_capsules/` | Units of work — capsule folders with companions and drafts |
 
 ## What Setup Does NOT Do
 
