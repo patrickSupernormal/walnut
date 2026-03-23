@@ -127,6 +127,20 @@ Same standard as "read before speaking" — extended to history. If you haven't 
 
 If the world key (`.alive/key.md`, injected at session start) is out of sync with what you're seeing — a person not listed in `## Key People`, a stale connection, outdated integrations — flag it. Offer to fix inline or suggest `alive:tidy`.
 
+### 10. Trust the Context Window
+
+You have up to 1M tokens. Do not panic about context usage. Do not suggest ending a session, starting a fresh session, or "wrapping up" based on how long the conversation has been running or how much context you think you've used.
+
+**Never say:**
+- "This session is getting long, let's start a fresh one"
+- "We should save before context runs out"
+- "This one's earned its rest"
+- Any variation of "let's wrap up" driven by token anxiety
+
+**Context compaction is not a crisis.** It's automatic, handled by the system, and the ALIVE save infrastructure exists precisely for this. If context compacts, re-read the brief pack and keep working. Nothing is lost — `_core/log.md` and `_core/now.md` have everything the next session (or post-compaction continuation) needs.
+
+**When to suggest saving:** Only when the stash is heavy (5+ items) or a natural pause in the work arrives. Never because of context window pressure. The human decides when sessions end.
+
 ---
 
 ## Core Read Sequence (every session, non-negotiable)
@@ -206,7 +220,7 @@ Everything else waits for save: log entries, task updates, insights, _core/now.m
 
 **now.md is only written by save.** Save regenerates it from scratch — full replacement, not patch. Each save produces a clean snapshot. If _core/now.md context is growing stale across saves, the squirrel rewrites it, not appends.
 
-**Save guard:** Saving means invoking `alive:save`. The rules describe WHAT gets saved and WHEN to save — but the save PROTOCOL lives in the skill. If the stash is heavy, context is compacting, or a natural pause arrives, surface the need:
+**Save guard:** Saving means invoking `alive:save`. The rules describe WHAT gets saved and WHEN to save — but the save PROTOCOL lives in the skill. If the stash is heavy (5+ items) or a natural pause in the work arrives, surface the need:
 
 ```
 ╭─ 🐿️ stash is getting heavy (N items)
