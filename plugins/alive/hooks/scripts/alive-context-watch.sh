@@ -1,7 +1,8 @@
 #!/bin/bash
 # Hook: Context Watch — UserPromptSubmit
-# Checks if the current walnut's state files were modified by another session.
-# If so, injects additionalContext suggesting a context refresh.
+# Two jobs:
+# 1. Context % re-injection — at every 20% threshold, re-inject rules + context
+# 2. External change detection — if another session modified walnut state files
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/alive-common.sh"
@@ -11,6 +12,108 @@ find_world || exit 0
 
 SESSION_ID="${HOOK_SESSION_ID}"
 [ -z "$SESSION_ID" ] && exit 0
+
+# ── CONTEXT % RE-INJECTION ──────────────────────────────────────
+
+CTX_FILE="$WORLD_ROOT/.alive/.context_pct"
+if [ -f "$CTX_FILE" ]; then
+  CTX_PCT=$(cat "$CTX_FILE" 2>/dev/null | tr -d '[:space:]')
+
+  if [ -n "$CTX_PCT" ] && [ "$CTX_PCT" -gt 0 ] 2>/dev/null; then
+    # Check each 20% threshold — fire once per session per threshold
+    for THRESHOLD in 20 40 60 80; do
+      MARKER="/tmp/alive-ctx-${SESSION_ID}-${THRESHOLD}"
+      if [ "$CTX_PCT" -ge "$THRESHOLD" ] && [ ! -f "$MARKER" ]; then
+        touch "$MARKER"
+
+        # Build injection content based on threshold level
+        if [ "$THRESHOLD" -le 40 ]; then
+          # Condensed refresh
+          REFRESH="<ALIVE_REFRESH threshold=\"${THRESHOLD}%\">
+Context is at ${CTX_PCT}%. Refreshing core behaviours:
+- Stash decisions, tasks, and notes. Surface on change.
+- Verify past context via subagent before asserting. Never guess from memory.
+- Capsule awareness: deliverable or future audience = capsule. Prefer capsules over loose files.
+- Read before speaking. Never answer from memory about file contents.
+- Check the world key (injected at start) for walnut registry, people, credentials.
+</ALIVE_REFRESH>"
+        else
+          # Full re-injection at 60%+ — read world key and index
+          WORLD_KEY=""
+          [ -f "$WORLD_ROOT/.alive/key.md" ] && WORLD_KEY=$(cat "$WORLD_ROOT/.alive/key.md")
+          WORLD_INDEX=""
+          [ -f "$WORLD_ROOT/.alive/_index.yaml" ] && WORLD_INDEX=$(cat "$WORLD_ROOT/.alive/_index.yaml")
+
+          REFRESH="<ALIVE_REFRESH threshold=\"${THRESHOLD}%\">
+Context is at ${CTX_PCT}%. Full context refresh:
+- Stash decisions, tasks, and notes. Surface on change.
+- Verify past context via subagent before asserting. Never guess from memory.
+- Capsule awareness: deliverable or future audience = capsule.
+- Read before speaking. Never answer from memory about file contents.
+
+World Key:
+${WORLD_KEY}
+
+World Index:
+${WORLD_INDEX}
+</ALIVE_REFRESH>"
+        fi
+
+        # Scan active squirrel stashes for cross-pollination
+        ACTIVE_STASHES=""
+        if command -v python3 &>/dev/null; then
+          ACTIVE_STASHES=$(python3 -c "
+import os, glob, re
+sid = '$SESSION_ID'
+squirrels = glob.glob('$WORLD_ROOT/.alive/_squirrels/*.yaml')
+for f in squirrels:
+    with open(f) as fh:
+        content = fh.read()
+    # Skip our own session
+    if sid in content:
+        continue
+    # Check if ended: null (still active)
+    if 'ended: null' not in content:
+        continue
+    # Extract walnut and stash
+    walnut = ''
+    m = re.search(r'^walnut:\s*(.+)', content, re.M)
+    if m:
+        walnut = m.group(1).strip()
+    if walnut == 'null' or not walnut:
+        continue
+    # Extract stash items
+    stash_items = re.findall(r'content:\s*\"?(.+?)\"?\s*$', content, re.M)
+    if stash_items:
+        print(f'Active session on {walnut}: ' + '; '.join(stash_items[:5]))
+" 2>/dev/null || true)
+        fi
+
+        if [ -n "$ACTIVE_STASHES" ]; then
+          REFRESH="${REFRESH}
+
+<ACTIVE_SQUIRRELS>
+${ACTIVE_STASHES}
+</ACTIVE_SQUIRRELS>"
+        fi
+
+        REFRESH_ESCAPED=$(escape_for_json "$REFRESH")
+
+        cat <<REFRESHEOF
+{
+  "hookSpecificOutput": {
+    "hookEventName": "UserPromptSubmit",
+    "additionalContext": "${REFRESH_ESCAPED}"
+  }
+}
+REFRESHEOF
+        exit 0
+      fi
+    done
+  fi
+fi
+
+# ── EXTERNAL CHANGE DETECTION ───────────────────────────────────
 
 # Find which walnut this session is working on
 SQUIRRELS_DIR="$WORLD_ROOT/.alive/_squirrels"

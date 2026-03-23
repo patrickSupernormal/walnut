@@ -34,7 +34,18 @@ while IFS= read -r path; do
   # Check if resolved path is inside the World (protect entire root, not just subdirs)
   case "$resolved" in
     "$WORLD_ROOT"|"$WORLD_ROOT"/*)
-      echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Deletion blocked inside ALIVE world. Archive instead — move to 01_Archive/."}}'
+      # Rename to (Marked for Deletion) instead of blocking
+      if [ -e "$resolved" ]; then
+        BASENAME=$(basename "$resolved")
+        DIRNAME=$(dirname "$resolved")
+        MARKED="${DIRNAME}/${BASENAME} (Marked for Deletion)"
+        python3 -c "import os; os.rename('$resolved', '$MARKED')" 2>/dev/null || true
+        # Open containing folder in Finder
+        open "$DIRNAME" 2>/dev/null || true
+      fi
+      REASON="Renamed to (Marked for Deletion) at: ${resolved}. Review in Finder and delete manually if intended."
+      REASON_ESCAPED=$(echo "$REASON" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip()))" 2>/dev/null || echo "\"Renamed to Marked for Deletion\"")
+      echo "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":${REASON_ESCAPED}}}"
       exit 0
       ;;
   esac

@@ -469,6 +469,26 @@ Show:
 │  ▸ .alive/overrides.md (your customizations)
 ```
 
+#### Step 4b: Project settings — .claude/settings.json
+
+Create `.claude/` directory if it doesn't exist, then write `.claude/settings.json`:
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": ".alive/statusline.sh"
+  }
+}
+```
+
+This configures the Claude Code status line to use the ALIVE statusline script. Project-scoped — only applies when working in the World directory. The session-new hook keeps `statusline.sh` in sync with the plugin version.
+
+Show:
+```
+│  ▸ .claude/settings.json (status line)
+```
+
 #### Step 5: Create each walnut
 
 For each walnut in the list:
@@ -595,6 +615,7 @@ Display this summary. Fill in actual values for every placeholder.
 | `.alive/key.md` | World identity (name, goal, timezone, people, connections) |
 | `.alive/preferences.yaml` | Toggles, context sources, voice config |
 | `.alive/overrides.md` | User rule customizations (never overwritten by updates) |
+| `.claude/settings.json` | Project-level Claude Code config (status line) |
 | `.alive/_squirrels/` | Centralized session entries |
 | `[walnut]/_core/key.md` | Walnut identity and standing context |
 | `[walnut]/_core/now.md` | Current state synthesis |
@@ -610,4 +631,4 @@ Display this summary. Fill in actual values for every placeholder.
 - Configure MCP integrations (use `/alive:tune`)
 - Set up voice customization in terminal paths (use `/alive:tune`)
 - Create the walnut.world link (use `/alive:tune`)
-- Symlink rules or agents.md (handled by session-new hook, not setup)
+- Create rules files in the World (rules are injected at runtime by the session hook)

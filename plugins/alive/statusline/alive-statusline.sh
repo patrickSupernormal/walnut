@@ -87,6 +87,11 @@ fi
 
 # ── HEALTHY STATE ──
 
+# Write context % for other hooks to read (re-injection thresholds)
+if [ "$CTX_PCT" != "?" ] && [ -n "$WORLD_ROOT" ]; then
+  echo "$CTX_PCT" > "$WORLD_ROOT/.alive/.context_pct" 2>/dev/null
+fi
+
 # Count walnuts available
 WALNUT_COUNT=""
 if [ -n "$WORLD_ROOT" ]; then

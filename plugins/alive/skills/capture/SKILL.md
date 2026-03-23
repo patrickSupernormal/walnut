@@ -135,7 +135,7 @@ If items exist, enter inbox scan:
 
 1. **List** — scan `03_Inputs/` for non-system files (exclude `.DS_Store`, `.gitkeep`). Present numbered list with detected type and filename.
 2. **Process** — for each selected item: read the file, suggest destination walnut + capsule, rename garbage filenames per conventions, present for confirmation or redirect.
-3. **Capture** — route raw to the chosen capsule's `raw/`, update capsule companion `sources:`, stash insights/tasks, remove original from `03_Inputs/`. If no capsule fits, create one or use `_core/_capsules/_inbox/`.
+3. **Capture** — route raw to the chosen capsule's `raw/`, update capsule companion `sources:`, stash insights/tasks. Archive the original: move from `03_Inputs/{filename}` to `01_Archive/03_Inputs/{filename}` (create the directory if needed). Never delete inputs — always archive. If no capsule fits, create one or use `_core/_capsules/_inbox/`.
 4. **Continue or stop** — after each item: "N remaining. Next, or done for now?" Partial clearing is fine.
 
 ```

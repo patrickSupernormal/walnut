@@ -39,30 +39,11 @@ case "$FILE_PATH" in
     ;;
 esac
 
-# Block: .alive/agents.md (plugin-managed runtime instructions)
-if [ "$FILE_PATH" = "$WORLD_ROOT/.alive/agents.md" ]; then
+# Block: .claude/settings.json (plugin-managed statusline config)
+if [ "$FILE_PATH" = "$WORLD_ROOT/.claude/settings.json" ]; then
   echo "$DENY_MSG"
   exit 0
 fi
-
-# Block: .claude/CLAUDE.md (symlink to .alive/agents.md)
-if [ "$FILE_PATH" = "$WORLD_ROOT/.claude/CLAUDE.md" ]; then
-  echo "$DENY_MSG"
-  exit 0
-fi
-
-# Block: .claude/rules/ files (symlinked to .alive/rules/)
-case "$FILE_PATH" in
-  "$WORLD_ROOT/.claude/rules/"*)
-    BASENAME=$(basename "$FILE_PATH")
-    case "$BASENAME" in
-      voice.md|squirrels.md|human.md|world.md|capsules.md|standards.md)
-        echo "$DENY_MSG"
-        exit 0
-        ;;
-    esac
-    ;;
-esac
 
 # Block: anything in the ALIVE plugin cache
 case "$FILE_PATH" in

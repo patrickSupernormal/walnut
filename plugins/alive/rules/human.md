@@ -113,8 +113,9 @@ The system separates what it controls from what the human controls.
 **System files** (updated by plugin — protected by Rules Guardian hook):
 - Hooks (scripts + hooks.json)
 - Skills (SKILL.md files)
-- Rules (`.alive/rules/` — symlinked to `.claude/rules/`)
-- agents.md (symlinked to `.claude/CLAUDE.md`)
+- Rules (injected at runtime via session hooks — not stored in the World)
+- `.alive/statusline.sh` (copied from plugin on each session start)
+- `.claude/settings.json` (project-level Claude Code config — created by setup, maintained by session hook)
 
 The Rules Guardian hook blocks Edit/Write on all system files. This prevents accidental modification of files that would be overwritten on plugin update.
 
