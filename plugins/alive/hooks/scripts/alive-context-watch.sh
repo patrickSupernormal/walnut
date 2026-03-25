@@ -20,11 +20,24 @@ if [ -f "$CTX_FILE" ]; then
   CTX_PCT=$(cat "$CTX_FILE" 2>/dev/null | tr -d '[:space:]')
 
   if [ -n "$CTX_PCT" ] && [ "$CTX_PCT" -gt 0 ] 2>/dev/null; then
-    # Check each 20% threshold — fire once per session per threshold
-    for THRESHOLD in 20 40 60 80; do
+    # Find highest unfired threshold — inject once, not serially across prompts
+    FIRE_THRESHOLD=""
+    for THRESHOLD in 80 60 40 20; do
       MARKER="/tmp/alive-ctx-${SESSION_ID}-${THRESHOLD}"
       if [ "$CTX_PCT" -ge "$THRESHOLD" ] && [ ! -f "$MARKER" ]; then
-        touch "$MARKER"
+        FIRE_THRESHOLD="$THRESHOLD"
+        break
+      fi
+    done
+
+    if [ -n "$FIRE_THRESHOLD" ]; then
+      # Mark all thresholds at or below the fired one
+      for T in 20 40 60 80; do
+        if [ "$T" -le "$FIRE_THRESHOLD" ]; then
+          touch "/tmp/alive-ctx-${SESSION_ID}-${T}"
+        fi
+      done
+      THRESHOLD="$FIRE_THRESHOLD"
 
         # Build injection content based on threshold level
         if [ "$THRESHOLD" -le 40 ]; then
@@ -69,8 +82,8 @@ squirrels = glob.glob('$WORLD_ROOT/.alive/_squirrels/*.yaml')
 for f in squirrels:
     with open(f) as fh:
         content = fh.read()
-    # Skip our own session
-    if sid in content:
+    # Skip our own session (check filename, not content — avoids false match if SID appears in stash text)
+    if os.path.basename(f).replace('.yaml','') == sid:
         continue
     # Check if ended: null (still active)
     if 'ended: null' not in content:
@@ -99,6 +112,8 @@ ${ACTIVE_STASHES}
 
         REFRESH_ESCAPED=$(escape_for_json "$REFRESH")
 
+        # Hook can only return one JSON response, so re-injection takes priority.
+        # External change detection runs on every other prompt (re-injection fires at most 4x per session).
         cat <<REFRESHEOF
 {
   "hookSpecificOutput": {
@@ -108,8 +123,7 @@ ${ACTIVE_STASHES}
 }
 REFRESHEOF
         exit 0
-      fi
-    done
+    fi
   fi
 fi
 
@@ -167,8 +181,10 @@ date +%s > "$LASTCHECK"
 [ -z "${CHANGED:-}" ] && exit 0
 
 # Check if the change was made by US (same session_id in now.md squirrel field)
-LAST_SQUIRREL=$(grep '^squirrel:' "$WALNUT_CORE/now.md" 2>/dev/null | sed 's/squirrel: *//' || true)
-if [ "${LAST_SQUIRREL:-}" = "$SESSION_ID" ]; then
+# now.md uses short IDs (first 8 chars), hook gets full UUID — check both
+LAST_SQUIRREL=$(grep '^squirrel:' "$WALNUT_CORE/now.md" 2>/dev/null | sed 's/squirrel: *//' | tr -d '[:space:]' || true)
+SHORT_SID="${SESSION_ID:0:8}"
+if [ "${LAST_SQUIRREL:-}" = "$SESSION_ID" ] || [ "${LAST_SQUIRREL:-}" = "$SHORT_SID" ]; then
   exit 0
 fi
 

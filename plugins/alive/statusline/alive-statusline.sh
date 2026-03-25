@@ -9,8 +9,9 @@ PARSED=$(echo "$INPUT" | python3 -c "
 import sys,json
 d=json.load(sys.stdin)
 print(d.get('session_id',''))
-c=d.get('cost',{})
-print(f\"\${c.get('total_cost_usd',0):.2f}\")
+c=d.get('cost') or {}
+v=c.get('total_cost_usd') or 0
+print(f\"\${v:.2f}\")
 cw=d.get('context_window',{})
 p=cw.get('used_percentage')
 print(f'{p:.0f}' if p is not None else '?')
