@@ -35,26 +35,30 @@ SETTINGS_DIR="$WORLD_ROOT/.claude"
 SETTINGS_FILE="$SETTINGS_DIR/settings.json"
 mkdir -p "$SETTINGS_DIR"
 if [ ! -f "$SETTINGS_FILE" ]; then
-  cat > "$SETTINGS_FILE" << 'SETTINGSEOF'
+  cat > "$SETTINGS_FILE" << SETTINGSEOF
 {
   "statusLine": {
     "type": "command",
-    "command": ".alive/statusline.sh"
+    "command": "$WORLD_ROOT/.alive/statusline.sh"
   }
 }
 SETTINGSEOF
-elif ! grep -q '"statusLine"' "$SETTINGS_FILE" 2>/dev/null; then
+else
+  # settings.json exists — ensure statusLine is present and uses absolute path
   if command -v python3 &>/dev/null; then
-    ALIVE_SETTINGS_FILE="$SETTINGS_FILE" python3 -c "
+    ALIVE_SETTINGS_FILE="$SETTINGS_FILE" ALIVE_WORLD_ROOT="$WORLD_ROOT" python3 -c "
 import json, os, sys
 sf = os.environ['ALIVE_SETTINGS_FILE']
+wr = os.environ['ALIVE_WORLD_ROOT']
+expected = wr + '/.alive/statusline.sh'
 try:
     with open(sf) as f:
         data = json.load(f)
 except (json.JSONDecodeError, ValueError):
     sys.exit(0)
-if 'statusLine' not in data:
-    data['statusLine'] = {'type': 'command', 'command': '.alive/statusline.sh'}
+current = data.get('statusLine', {}).get('command', '')
+if current != expected:
+    data['statusLine'] = {'type': 'command', 'command': expected}
     with open(sf, 'w') as f:
         json.dump(data, f, indent=2)
         f.write('\n')
@@ -101,8 +105,13 @@ if [ -n "$ENTRY" ] && [ -f "$ENTRY" ]; then
   ENTRY_SESSION_ID=$(grep '^session_id:' "$ENTRY" | head -1 | sed 's/session_id: *//' || true)
   WALNUT=$(grep '^walnut:' "$ENTRY" | head -1 | sed 's/walnut: *//' || true)
 
-  # Extract stash content lines from YAML
-  STASH=$(awk '/^stash:/{found=1; next} found && /^[a-z]/{found=0} found && /content:/{gsub(/.*content: *"?/,""); gsub(/"$/,""); print "- " $0}' "$ENTRY" 2>/dev/null || true)
+  # Only show stash if this entry was never saved (saves: 0) — saved stash items were already routed
+  SAVES=$(grep '^saves:' "$ENTRY" | head -1 | sed 's/saves: *//' | tr -d '[:space:]' || echo "0")
+  if [ "$SAVES" = "0" ]; then
+    STASH=$(awk '/^stash:/{found=1; next} found && /^[a-z]/{found=0} found && /content:/{gsub(/.*content: *"?/,""); gsub(/"$/,""); print "- " $0}' "$ENTRY" 2>/dev/null || true)
+  else
+    STASH=""
+  fi
   if [ -z "${STASH:-}" ]; then
     STASH="(empty)"
   fi

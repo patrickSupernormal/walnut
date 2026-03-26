@@ -85,8 +85,11 @@ for f in squirrels:
     # Skip our own session (check filename, not content — avoids false match if SID appears in stash text)
     if os.path.basename(f).replace('.yaml','') == sid:
         continue
-    # Check if ended: null (still active)
+    # Check if ended: null (still active) and saves: 0 (genuinely unsaved — saved stash is historical)
     if 'ended: null' not in content:
+        continue
+    saves_m = re.search(r'^saves:\s*(\d+)', content, re.M)
+    if saves_m and int(saves_m.group(1)) > 0:
         continue
     # Extract walnut and stash
     walnut = ''

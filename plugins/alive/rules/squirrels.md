@@ -420,7 +420,7 @@ Entries accumulate. They're tiny and scannable. Don't archive them.
 
 ## Unsigned Entry Recovery
 
-If `.alive/_squirrels/` has an unsaved entry with stash items from a previous session:
+If `.alive/_squirrels/` has an entry from a previous session with stash items AND `saves: 0` (genuinely unsaved), surface it. Entries with `saves: 1` or higher have already routed their stash — those items are historical records, not unfinished work. Skip them.
 
 ```
 ╭─ 🐿️ previous session had 6 stash items that were never saved.
