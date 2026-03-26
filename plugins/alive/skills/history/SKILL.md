@@ -1,5 +1,5 @@
 ---
-description: "The human needs context from previous sessions — what happened, when, and why. Searches squirrel YAMLs, recent stash items, and recent logs. The light version of session recall — 'what happened recently?' Filters by walnut, topic, person, or timeframe. Can suggest escalation to alive:mine when it finds unmined sessions with rich context."
+description: "The human needs context from previous sessions — what happened, when, and why. Revive sessions (quick or heavy) to reconstruct full context from transcripts. Searches squirrel YAMLs, recent stash items, and recent logs. Filters by walnut, topic, person, or timeframe. Can suggest escalation to alive:mine when it finds unmined sessions with rich context."
 user-invocable: true
 ---
 

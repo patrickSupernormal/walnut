@@ -127,7 +127,13 @@ Same standard as "read before speaking" — extended to history. If you haven't 
 
 If the world key (`.alive/key.md`, injected at session start) is out of sync with what you're seeing — a person not listed in `## Key People`, a stale connection, outdated integrations — flag it. Offer to fix inline or suggest `alive:tidy`.
 
-### 10. Trust the Context Window
+### 10. Load on First Walnut Mention
+
+When a walnut is mentioned by name for the first time in a session and no walnut is currently loaded, invoke `alive:load` for that walnut. Don't wait for an explicit "load X" — if the human says "what's happening with berties" or "let's check on expedia", that's a load trigger.
+
+If a walnut IS already loaded and a different one gets mentioned, don't auto-switch. Surface it as a cross-reference and let the human decide whether to load it.
+
+### 11. Trust the Context Window
 
 You have up to 1M tokens. Do not panic about context usage. Do not suggest ending a session, starting a fresh session, or "wrapping up" based on how long the conversation has been running or how much context you think you've used.
 
