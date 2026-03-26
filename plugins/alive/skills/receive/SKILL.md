@@ -152,6 +152,10 @@ with tarfile.open(archive_path, "r:gz") as tf:
             break
 
         raw = member.name
+        # Cap raw name length early to prevent DoS from huge PAX-provided paths
+        if len(raw) > 16384:
+            violations.append(f"Raw name too long: {len(raw)} chars")
+            continue
         # Check raw name for traversal BEFORE normalization (normpath erases internal ..)
         if ".." in raw.split("/"):
             violations.append(f"Path traversal in raw name: {raw}")
@@ -168,6 +172,9 @@ with tarfile.open(archive_path, "r:gz") as tf:
 
         # Allow tar metadata entries (PAX, GNU longname) but skip extraction
         if member.type in TAR_METADATA_TYPES:
+            continue
+        # Reject entries that normalize to staging root itself
+        if name in ("", ".", "./"):
             continue
         # Reject symlinks and hardlinks
         if member.issym() or member.islnk():
@@ -371,8 +378,9 @@ python3 -c '
 import sys
 with open(sys.argv[1]) as f:
     text = f.read()
-# Strip ASCII control chars (C0 except \n\r\t, DEL, C1 range)
-cleaned = "".join(c if (c in "\n\r\t" or 0x20 <= ord(c) < 0x7f or ord(c) > 0x9f) else "?" for c in text)
+# Strip ASCII control chars (C0 except \n and \t, DEL, C1 range)
+# \r is NOT allowed (can rewrite prior terminal content)
+cleaned = "".join(c if (c in "\n\t" or 0x20 <= ord(c) < 0x7f or ord(c) > 0x9f) else "?" for c in text)
 print(cleaned)
 ' "$STAGING/manifest.yaml"
 ```
@@ -529,7 +537,7 @@ Clean up staging on any failure.
 
 ### Step 5 -- Content Preview
 
-**Display safety:** All manifest fields (`source.walnut`, `description`, `note`, capsule names) are untrusted input from the sender. Before displaying any manifest string in bordered blocks, strip control characters (anything below U+0020 except newline) to prevent terminal escape injection. Replace with `?` or omit.
+**Display safety:** All manifest fields (`source.walnut`, `description`, `note`, capsule names) and `.walnut.meta` content are untrusted input from the sender. Before displaying any string from these sources in bordered blocks, strip control characters: reject anything below U+0020 except `\n` and `\t` (NOT `\r` -- carriage return can rewrite prior terminal content), plus DEL (U+007F) and C1 range (U+0080-U+009F). Replace stripped chars with `?` or omit. Apply the same sanitization in Step 1 (meta preview).
 
 Read the manifest and show what's inside:
 
@@ -679,7 +687,11 @@ This is the core write step. Behavior depends on scope.
 Follow the walnut scaffolding pattern from `skills/create/SKILL.md`:
 
 1. Create the directory structure at `<domain>/<walnut-name>/`
-2. Copy `_core/` contents from staging to the new walnut's `_core/`
+2. Copy `_core/` contents from staging to the new walnut's `_core/` using safe rsync:
+   ```bash
+   rsync -rt --no-links --no-specials --no-devices -- "$STAGING/_core/" "<target-walnut>/_core/"
+   ```
+   This strips foreign permissions/ownership and rejects any special files that survived extraction.
 3. Create `_core/_capsules/` if not present in the package
 
 **Handle log.md via bash** (the log guardian hook blocks Write tool on log.md; Edit is allowed for prepending new entries but NOT for modifying signed entries):
@@ -687,7 +699,7 @@ Follow the walnut scaffolding pattern from `skills/create/SKILL.md`:
 If the package includes `_core/log.md`, write the entire file via bash first (this is a new walnut, so no existing signed entries to protect):
 
 ```bash
-cat "$STAGING/_core/log.md" > "<target-walnut>/_core/log.md"
+cat -- "$STAGING/_core/log.md" > "<target-walnut>/_core/log.md"
 ```
 
 Then prepend an import entry at the top of the log (after frontmatter) using the Edit tool (this is a new unsigned entry, which the log guardian allows):
@@ -716,9 +728,11 @@ python3 -c '
 import re, sys, pathlib
 tasks_path = sys.argv[1]
 source = sys.argv[2]
-text = pathlib.Path(tasks_path).read_text()
-updated = re.sub(r"@([0-9a-f]{6,})", f"@[{source}]", text)
-pathlib.Path(tasks_path).write_text(updated)
+# Sanitize source name to prevent regex replacement backrefs
+safe_source = re.sub(r"[^a-z0-9_-]", "-", source.lower())
+text = pathlib.Path(tasks_path).read_text(encoding="utf-8", errors="replace")
+updated = re.sub(r"@([0-9a-f]{6,})", lambda m: f"@[{safe_source}]", text)
+pathlib.Path(tasks_path).write_text(updated, encoding="utf-8")
 ' "<target-walnut>/_core/tasks.md" "<source-walnut-name>"
 ```
 
@@ -759,8 +773,8 @@ rm -rf "<target-walnut>/_core/_capsules/<capsule-name>"
 Then copy (same for new capsules and replacements):
 
 ```bash
-mkdir -p "<target-walnut>/_core/_capsules/<capsule-name>"
-rsync -rt --no-links --no-specials --no-devices "$STAGING/_core/_capsules/<capsule-name>/" "<target-walnut>/_core/_capsules/<capsule-name>/"
+mkdir -p -- "<target-walnut>/_core/_capsules/<capsule-name>"
+rsync -rt --no-links --no-specials --no-devices -- "$STAGING/_core/_capsules/<capsule-name>/" "<target-walnut>/_core/_capsules/<capsule-name>/"
 ```
 
 Using `-rt` (recursive + timestamps) instead of `-a` avoids preserving foreign permissions, ownership, and group from the package. `--no-links --no-specials --no-devices` is defense-in-depth -- Step 2 already filtered these out, but this prevents accidental copies if the staging dir is modified between extraction and routing.
@@ -797,7 +811,7 @@ Only if the human chose "Capture as a reference" in Step 6.
 Create a companion in the target walnut's `_core/_references/snapshots/`:
 
 ```bash
-mkdir -p "<target-walnut>/_core/_references/snapshots"
+mkdir -p -- "<target-walnut>/_core/_references/snapshots"
 ```
 
 Write a companion file:
@@ -843,8 +857,9 @@ Move the original `.walnut` (or `.walnut.age`) file from its current location to
 Only auto-archive files that came from `03_Inputs/`. Files from other locations (e.g. Desktop) are left where the human put them.
 
 ```bash
-PACKAGE_REAL="$(cd "$(dirname "<package-path>")" && pwd)/$(basename "<package-path>")"
-INPUTS_DIR="$(cd "<world-root>/03_Inputs" 2>/dev/null && pwd)"
+# Use pwd -P (physical, no symlinks) for reliable containment check
+PACKAGE_REAL="$(cd "$(dirname "<package-path>")" && pwd -P)/$(basename "<package-path>")"
+INPUTS_DIR="$(cd "<world-root>/03_Inputs" 2>/dev/null && pwd -P)"
 
 # Only archive if the package is inside 03_Inputs/ (or a subdirectory)
 case "$PACKAGE_REAL" in
@@ -856,14 +871,12 @@ esac
 
 if [ "$SHOULD_ARCHIVE" = "true" ]; then
   ARCHIVE_DIR="<world-root>/01_Archive/03_Inputs"
-  mkdir -p "$ARCHIVE_DIR"
+  mkdir -p -- "$ARCHIVE_DIR"
+  TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 
-  # If a file with the same name already exists, append timestamp
   # Handles compound extensions: name.walnut.age -> name-TS.walnut.age
   BASENAME="$(basename "<package-path>")"
   if [ -e "$ARCHIVE_DIR/$BASENAME" ]; then
-    TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-    # Match known compound extensions, insert timestamp before them
     case "$BASENAME" in
       *.walnut.age) STEM="${BASENAME%.walnut.age}"; EXT="walnut.age" ;;
       *.walnut.meta) STEM="${BASENAME%.walnut.meta}"; EXT="walnut.meta" ;;
@@ -872,7 +885,7 @@ if [ "$SHOULD_ARCHIVE" = "true" ]; then
     esac
     BASENAME="${STEM}-${TIMESTAMP}.${EXT}"
   fi
-  mv "<package-path>" "$ARCHIVE_DIR/$BASENAME"
+  mv -- "<package-path>" "$ARCHIVE_DIR/$BASENAME"
 
   # Also archive .walnut.meta sidecar if present
   if [ -f "<meta-path>" ]; then
@@ -884,7 +897,7 @@ if [ "$SHOULD_ARCHIVE" = "true" ]; then
       esac
       META_BASE="${META_STEM}-${TIMESTAMP}.${META_EXT}"
     fi
-    mv "<meta-path>" "$ARCHIVE_DIR/$META_BASE"
+    mv -- "<meta-path>" "$ARCHIVE_DIR/$META_BASE"
   fi
 fi
 ```
