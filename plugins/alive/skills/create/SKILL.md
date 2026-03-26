@@ -216,6 +216,7 @@ Follow the process from `world.md § Creating a New Walnut` exactly:
 7. Write first log entry: "Walnut created. {goal}" — signed with session_id
 8. If sub-walnut: set `parent: [[parent-name]]` in `_core/key.md` frontmatter
 9. Add `[[new-walnut-name]]` to parent's `_core/key.md` `links:` frontmatter field
+10. **Update `.alive/key.md`** — add the new walnut to the `## Connections` section: `- [[new-walnut-name]] — {goal}`. This keeps the world key as the living index of all walnuts. If `.alive/_index.yaml` exists, regenerate it too.
 
 ```
 ╭─ 🐿️ scaffolding...
