@@ -82,8 +82,7 @@ Fetch packages from the local relay inbox. Triggered by:
 
 - `/alive:receive --relay` (explicit)
 - The squirrel acting on the session-start hook notification ("N packages waiting on the relay")
-- `/alive:relay status` → "Import now?" (relay skill invokes `/alive:receive --relay`)
-- `/alive:relay pull` (relay skill delegates to `/alive:receive --relay`)
+- The relay skill's status flow: when `/alive:relay status` shows pending packages and the human picks "Import", the relay skill passes each package path to `/alive:receive` as a direct invocation (entry point 1). The `RELAY_SOURCE` auto-detection (see 3d) handles cleanup.
 
 **Relay pull flow:**
 
@@ -117,29 +116,60 @@ If no world root:
 ╰─
 ```
 
-Check relay config. A relay is "configured for pull" when relay.yaml exists AND has a non-empty `relay.repo` and `relay.local`, and the local clone directory exists. A partial relay.yaml (from bootstrap, with empty `repo`/`local`) is NOT sufficient for relay pull.
+Check relay config. A relay is "configured for pull" when relay.yaml exists AND has a non-empty `relay.repo` and `relay.local`, the local path is safe (relative, no `..`, resolves under world root), and the clone directory exists. A partial relay.yaml (from bootstrap, with empty `repo`/`local`) is NOT sufficient for relay pull.
 
-Parse `relay.local` from config (do not hardcode the path):
+Parse and validate config via Python (safer than grep for YAML-like content):
 
 ```bash
-if [ ! -f "$WORLD_ROOT/.alive/relay.yaml" ]; then
-  echo "NOT_CONFIGURED"
-elif ! grep -q 'repo: "[^"]' "$WORLD_ROOT/.alive/relay.yaml" 2>/dev/null; then
-  echo "PARTIAL_CONFIG"
-else
-  RELAY_LOCAL=$(grep '^ *local:' "$WORLD_ROOT/.alive/relay.yaml" | head -1 | sed 's/^.*local: *"*\([^"]*\)"*/\1/' | tr -d '[:space:]')
-  if [ -z "$RELAY_LOCAL" ]; then
-    echo "PARTIAL_CONFIG"
-  elif [ ! -d "$WORLD_ROOT/$RELAY_LOCAL/.git" ]; then
-    echo "CLONE_MISSING"
-  else
-    echo "CONFIGURED"
-    echo "RELAY_LOCAL=$RELAY_LOCAL"
-  fi
-fi
+python3 - "$WORLD_ROOT" << 'PYEOF'
+import sys, os, re
+
+world_root = sys.argv[1]
+config_path = os.path.join(world_root, ".alive", "relay.yaml")
+
+if not os.path.isfile(config_path):
+    print("NOT_CONFIGURED")
+    sys.exit(0)
+
+with open(config_path) as f:
+    text = f.read()
+
+repo_match = re.search(r'repo:\s*"([^"\n]+)"', text)
+local_match = re.search(r'local:\s*"([^"\n]+)"', text)
+username_match = re.search(r'github_username:\s*"([^"\n]+)"', text)
+
+repo = repo_match.group(1).strip() if repo_match else ""
+local = local_match.group(1).strip() if local_match else ""
+username = username_match.group(1).strip() if username_match else ""
+
+if not repo or not local:
+    print("PARTIAL_CONFIG")
+    sys.exit(0)
+
+# Validate local path: must be relative, no .., resolve under world root
+if os.path.isabs(local) or ".." in local.split(os.sep):
+    print("INVALID_LOCAL_PATH")
+    sys.exit(0)
+
+resolved = os.path.realpath(os.path.join(world_root, local))
+if not resolved.startswith(os.path.realpath(world_root) + os.sep):
+    print("INVALID_LOCAL_PATH")
+    sys.exit(0)
+
+if not os.path.isdir(os.path.join(resolved, ".git")):
+    print("CLONE_MISSING")
+    sys.exit(0)
+
+# Validate username
+if not username or not re.fullmatch(r'[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?', username):
+    print("INVALID_USERNAME")
+    sys.exit(0)
+
+print(f"CONFIGURED RELAY_LOCAL={local} GITHUB_USERNAME={username}")
+PYEOF
 ```
 
-Persist `RELAY_LOCAL` in conversation state -- it is used for pull, inbox listing, and cleanup throughout entry point 3.
+Parse the output to extract `RELAY_LOCAL` and `GITHUB_USERNAME`. Persist both in conversation state -- they are used for pull, inbox listing, and cleanup throughout entry point 3.
 
 If not configured:
 
@@ -170,19 +200,36 @@ If clone missing:
 ╰─
 ```
 
+If invalid local path or invalid username:
+
+```
+╭─ 🐿️ relay config invalid
+│
+│  The relay.yaml config has invalid values.
+│  Run /alive:relay setup to reconfigure.
+╰─
+```
+
 #### 3b. Pull latest from relay clone
 
-Pull with credential prompts disabled and check exit code. The clone existence check already happened in 3a. Use `$RELAY_LOCAL` from 3a:
+Pull with credential prompts disabled and check exit code. Use `--ff-only` to prevent merge commits; if the remote was force-pushed (compaction), fall back to fetch+reset. Use `$RELAY_LOCAL` from 3a:
 
 ```bash
 # Prevent git from prompting for credentials (would hang)
 export GIT_TERMINAL_PROMPT=0
-git -C "$WORLD_ROOT/$RELAY_LOCAL" pull --quiet 2>&1
 
-if [ $? -ne 0 ]; then
-  echo "PULL_FAILED"
-else
+# Try fast-forward pull first
+if git -C "$WORLD_ROOT/$RELAY_LOCAL" pull --ff-only --quiet 2>&1; then
   echo "PULLED"
+else
+  # Fast-forward failed (force push, diverged) -- fetch and reset
+  BRANCH=$(git -C "$WORLD_ROOT/$RELAY_LOCAL" branch --show-current 2>/dev/null || echo "main")
+  if git -C "$WORLD_ROOT/$RELAY_LOCAL" fetch --quiet 2>/dev/null && \
+     git -C "$WORLD_ROOT/$RELAY_LOCAL" reset --hard "origin/$BRANCH" --quiet 2>/dev/null; then
+    echo "RESET_TO_REMOTE"
+  else
+    echo "PULL_FAILED"
+  fi
 fi
 ```
 
@@ -201,11 +248,7 @@ If pull fails (network error, auth expired):
 
 Continue with whatever is in the local clone. Do not abort -- stale-but-present packages are still importable.
 
-Parse the GitHub username from relay.yaml:
-
-```bash
-GITHUB_USERNAME=$(grep '^ *github_username:' "$WORLD_ROOT/.alive/relay.yaml" | head -1 | sed 's/^.*github_username: *"*\([^"]*\)"*/\1/' | tr -d '[:space:]')
-```
+`GITHUB_USERNAME` was already extracted and validated in step 3a.
 
 #### 3c. List packages in own inbox
 
@@ -277,15 +320,17 @@ After each package is successfully imported via the full receive flow (Steps 1-9
 
 If multiple packages are imported in sequence, batch the git cleanup -- remove all successfully imported packages in a single commit:
 
+Derive repo-relative paths from the full package paths returned by `find` in step 3c. Use basenames to construct the inbox-relative path:
+
 ```bash
 cd "$WORLD_ROOT/$RELAY_LOCAL"
 
 # Prevent git from prompting for credentials
 export GIT_TERMINAL_PROMPT=0
 
-# Remove each successfully imported package
-git rm "inbox/$GITHUB_USERNAME/<package-1>" 2>&1
-git rm "inbox/$GITHUB_USERNAME/<package-2>" 2>&1
+# Remove each successfully imported package using basename for safety
+git rm "inbox/$GITHUB_USERNAME/$(basename '<full-path-to-package-1>')" 2>&1
+git rm "inbox/$GITHUB_USERNAME/$(basename '<full-path-to-package-2>')" 2>&1
 
 # Only commit and push if there are staged removals
 if ! git diff --cached --quiet 2>/dev/null; then
@@ -305,7 +350,7 @@ If the push fails (network error), warn but don't block:
 │
 │  Import succeeded but couldn't push cleanup to the relay.
 │  The packages are still in your remote inbox -- they'll be
-│  cleaned up next time. Run: cd .alive/relay && git push
+│  cleaned up next time. Run: cd <relay-local-path> && git push
 ╰─
 ```
 
@@ -388,7 +433,27 @@ After reading the manifest and showing the preview, check for the optional `rela
 
 **Skip this check if:**
 - The package was pulled from the relay (entry point 3 / `RELAY_SOURCE=true`) -- the connection already exists
-- A local relay is already configured and the sender is already a peer
+- A local relay is already configured and the sender is already a peer. Detect this by parsing `peers[].github` from `.alive/relay.yaml`:
+
+```bash
+python3 -c "
+import sys, re
+config_path = sys.argv[1]
+sender = sys.argv[2].lower()
+try:
+    with open(config_path) as f:
+        text = f.read()
+    peers = re.findall(r'github:\s*\"?([^\"\\n]+)\"?', text)
+    if any(p.strip().lower() == sender for p in peers):
+        print('ALREADY_PEER')
+    else:
+        print('NEW_SENDER')
+except FileNotFoundError:
+    print('NO_CONFIG')
+" "$WORLD_ROOT/.alive/relay.yaml" "<relay.sender>" 2>/dev/null
+```
+
+If `ALREADY_PEER`, skip bootstrap and proceed to Step 2.
 
 **Validate manifest relay fields before use (untrusted input):**
 
@@ -487,16 +552,15 @@ Use the validated `relay.repo` to match against pending invitations. Parse the o
 RELAY_OWNER=$(echo "<relay.repo>" | cut -d'/' -f1)
 RELAY_REPO_NAME=$(echo "<relay.repo>" | cut -d'/' -f2)
 
-gh api /user/repository_invitations --jq "
+INVITATIONS_JSON=$(gh api /user/repository_invitations --jq "
   [.[] | select(.repository.name == \"$RELAY_REPO_NAME\" and .repository.owner.login == \"$RELAY_OWNER\") |
    {id: .id, owner: .repository.owner.login, repo: .repository.full_name}]
-" 2>&1
+" 2>/dev/null)
 ```
 
 Parse the result. If the JSON array is non-empty, extract the invitation ID:
 
 ```bash
-# If single invitation, extract ID directly
 INVITATION_ID=$(echo "$INVITATIONS_JSON" | python3 -c "
 import sys, json
 data = json.load(sys.stdin)
