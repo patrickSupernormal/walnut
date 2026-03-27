@@ -138,13 +138,18 @@ if not os.path.isfile(config_path):
 with open(config_path) as f:
     text = f.read()
 
-repo_match = re.search(r'repo:\s*"([^"\n]+)"', text)
-local_match = re.search(r'local:\s*"([^"\n]+)"', text)
-username_match = re.search(r'github_username:\s*"([^"\n]+)"', text)
+# Accept both quoted and unquoted YAML scalar values
+def yaml_val(key, text):
+    m = re.search(rf'{key}:\s*"([^"\n]+)"', text)
+    if not m:
+        m = re.search(rf"{key}:\s*'([^'\n]+)'", text)
+    if not m:
+        m = re.search(rf'{key}:\s*([^\s\n#]+)', text)
+    return m.group(1).strip() if m else ""
 
-repo = repo_match.group(1).strip() if repo_match else ""
-local = local_match.group(1).strip() if local_match else ""
-username = username_match.group(1).strip() if username_match else ""
+repo = yaml_val('repo', text)
+local = yaml_val('local', text)
+username = yaml_val('github_username', text)
 
 if not repo or not local:
     print("PARTIAL_CONFIG")
@@ -269,7 +274,7 @@ Continue with whatever is in the local clone. Do not abort -- stale-but-present 
 
 ```bash
 find "$WORLD_ROOT/$RELAY_LOCAL/inbox/$GITHUB_USERNAME" \
-  -name "*.walnut" -type f 2>/dev/null
+  -name "*.walnut" -type f 2>/dev/null | LC_ALL=C sort
 ```
 
 If no packages:
@@ -594,6 +599,27 @@ INVITATIONS_JSON=$(gh api /user/repository_invitations --jq "
   [.[] | select(.repository.name == \"$RELAY_REPO_NAME\" and .repository.owner.login == \"$RELAY_OWNER\") |
    {id: .id, owner: .repository.owner.login, repo: .repository.full_name}]
 " 2>/dev/null)
+GH_EXIT=$?
+```
+
+If `gh api` failed (exit code non-zero or empty output), distinguish network/API errors from "no invitations":
+
+```bash
+if [ $GH_EXIT -ne 0 ] || [ -z "$INVITATIONS_JSON" ]; then
+  echo "API_ERROR"
+fi
+```
+
+If `API_ERROR`, warn and skip invitation acceptance (continue with import):
+
+```
+╭─ 🐿️ couldn't check invitations
+│
+│  GitHub API call failed (network or auth issue).
+│  Skipping relay invitation check. Try /alive:relay peer accept later.
+│
+│  Continuing with package import.
+╰─
 ```
 
 Parse the result. If the JSON array is non-empty, extract the invitation ID:
