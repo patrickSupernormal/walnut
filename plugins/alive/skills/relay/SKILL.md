@@ -180,15 +180,11 @@ This creates a public-facing resource on GitHub. Confirm before proceeding:
 ╰─
 ```
 
-After confirmation:
+After confirmation, create the repo:
 
 ```bash
-RELAY_REPO_DIR="$WORLD_ROOT/.alive/relay/repo"
-mkdir -p "$(dirname "$RELAY_REPO_DIR")"
-
-gh repo create walnut-relay --private \
-  --description "Walnut P2P relay inbox" \
-  --clone "$RELAY_REPO_DIR" 2>&1
+gh repo create walnut-relay --private --confirm \
+  --description "Walnut P2P relay inbox" 2>&1
 ```
 
 If the repo already exists (exit code non-zero, message contains "already exists"), offer to reuse it:
@@ -204,12 +200,15 @@ If the repo already exists (exit code non-zero, message contains "already exists
 ╰─
 ```
 
-If reusing, clone it instead:
+Then clone with sparse checkout (whether newly created or reused):
 
 ```bash
+RELAY_CLONE_DIR="$WORLD_ROOT/.alive/relay"
+mkdir -p "$(dirname "$RELAY_CLONE_DIR")"
+
 git clone --filter=blob:none --sparse \
   "https://github.com/$GITHUB_USERNAME/walnut-relay.git" \
-  "$RELAY_REPO_DIR" 2>&1
+  "$RELAY_CLONE_DIR" 2>&1
 ```
 
 ### Step 3 -- Generate RSA-4096 keypair
@@ -217,27 +216,27 @@ git clone --filter=blob:none --sparse \
 Generate the keypair using openssl (zero dependencies, pre-installed on macOS and Linux):
 
 ```bash
-RELAY_DIR="$WORLD_ROOT/.alive/relay"
-mkdir -p "$RELAY_DIR"
+RELAY_KEYS_DIR="$WORLD_ROOT/.alive/relay-keys"
+mkdir -p "$RELAY_KEYS_DIR"
 
 # Generate private key (stays local, never committed)
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 \
-  -out "$RELAY_DIR/private.pem" 2>&1
+  -out "$RELAY_KEYS_DIR/private.pem" 2>&1
 
 # Extract public key
-openssl rsa -in "$RELAY_DIR/private.pem" -pubout \
-  -out "$RELAY_DIR/public.pem" 2>&1
+openssl rsa -in "$RELAY_KEYS_DIR/private.pem" -pubout \
+  -out "$RELAY_KEYS_DIR/public.pem" 2>&1
 
 # Lock down private key permissions
-chmod 600 "$RELAY_DIR/private.pem"
-chmod 644 "$RELAY_DIR/public.pem"
+chmod 600 "$RELAY_KEYS_DIR/private.pem"
+chmod 644 "$RELAY_KEYS_DIR/public.pem"
 ```
 
 Verify private key permissions (portable check):
 
 ```bash
 # Works on both macOS and Linux
-ls -l "$RELAY_DIR/private.pem" | awk '{print $1}'
+ls -l "$RELAY_KEYS_DIR/private.pem" | awk '{print $1}'
 ```
 
 If the output does not start with `-rw-------`, warn:
@@ -246,7 +245,7 @@ If the output does not start with `-rw-------`, warn:
 ╭─ 🐿️ heads up
 │
 │  Private key permissions are too open. Should be 600 (owner read/write only).
-│  Run: chmod 600 .alive/relay/private.pem
+│  Run: chmod 600 .alive/relay-keys/private.pem
 ╰─
 ```
 
@@ -255,7 +254,7 @@ If the output does not start with `-rw-------`, warn:
 Configure the clone for sparse checkout. Only the human's own inbox and the `keys/` directory are checked out locally:
 
 ```bash
-cd "$RELAY_REPO_DIR" && \
+cd "$RELAY_CLONE_DIR" && \
   git sparse-checkout init --cone && \
   git sparse-checkout set "inbox/$GITHUB_USERNAME" "keys" 2>&1
 ```
@@ -265,13 +264,13 @@ cd "$RELAY_REPO_DIR" && \
 Push the public key and initial README:
 
 ```bash
-cd "$RELAY_REPO_DIR"
+cd "$RELAY_CLONE_DIR"
 
 # Create directory structure
 mkdir -p "keys" "inbox/$GITHUB_USERNAME"
 
 # Copy public key into keys/
-cp "$WORLD_ROOT/.alive/relay/public.pem" "keys/$GITHUB_USERNAME.pem"
+cp "$WORLD_ROOT/.alive/relay-keys/public.pem" "keys/$GITHUB_USERNAME.pem"
 
 # Create README
 cat > README.md << 'READMEEOF'
@@ -325,10 +324,10 @@ now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"
 
 yaml_content = f"""relay:
   repo: "{username}/walnut-relay"
-  local: ".alive/relay/repo"
+  local: ".alive/relay/"
   github_username: "{username}"
-  private_key: ".alive/relay/private.pem"
-  public_key: ".alive/relay/public.pem"
+  private_key: ".alive/relay-keys/private.pem"
+  public_key: ".alive/relay-keys/public.pem"
   last_sync: "{now}"
   last_commit: "{commit}"
 peers: []
@@ -348,7 +347,7 @@ PYEOF
 ╭─ 🐿️ relay ready
 │
 │  Repo:        <username>/walnut-relay (private)
-│  Local clone: .alive/relay/repo/
+│  Local clone: .alive/relay/
 │  Keypair:     RSA-4096 (public key committed to relay)
 │  Sparse:      inbox/<username>/ + keys/
 │
@@ -508,7 +507,24 @@ gh api "repos/$GITHUB_USERNAME/walnut-relay/collaborators/$PEER_USERNAME" \
 ╰─
 ```
 
-### Step 6 -- Create inbox directory for the peer
+### Step 6 -- Derive peer slug
+
+Convert the display name to a walnut-compatible slug (kebab-case, lowercase, alphanumeric + hyphens):
+
+```bash
+PEER_SLUG=$(python3 -c "
+import sys, re, unicodedata
+name = sys.argv[1]
+# Normalize unicode, strip accents
+name = unicodedata.normalize('NFKD', name).encode('ascii', 'ignore').decode()
+# Lowercase, replace non-alnum with hyphens, collapse runs, strip edges
+slug = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
+print(slug)
+" "$PEER_NAME")
+echo "PEER_SLUG=$PEER_SLUG"
+```
+
+### Step 7 -- Create inbox directory for the peer
 
 Create the peer's inbox via the GitHub Contents API (avoids sparse checkout conflicts -- the local clone only checks out own inbox + keys):
 
@@ -524,16 +540,16 @@ gh api "repos/$GITHUB_USERNAME/walnut-relay/contents/inbox/$PEER_USERNAME/.gitke
 Then pull the latest into the local clone:
 
 ```bash
-cd "$WORLD_ROOT/.alive/relay/repo" && git pull --quiet 2>&1
+cd "$WORLD_ROOT/.alive/relay" && git pull --quiet 2>&1
 ```
 
-### Step 7 -- Update .alive/relay.yaml
+### Step 8 -- Update .alive/relay.yaml
 
-Append the new peer to the `peers:` list. All values passed via sys.argv to prevent injection:
+Append the new peer to the `peers:` list. All values passed via sys.argv to prevent injection. Name is sanitized to a single-line YAML-safe string:
 
 ```bash
 python3 - "$WORLD_ROOT/.alive/relay.yaml" "$PEER_USERNAME" "$PEER_NAME" "$PEER_SLUG" << 'PYEOF'
-import sys, datetime
+import sys, datetime, re
 
 config_path = sys.argv[1]
 peer_github = sys.argv[2]
@@ -541,8 +557,10 @@ peer_name = sys.argv[3]
 peer_slug = sys.argv[4]
 today = datetime.date.today().isoformat()
 
-# Escape any quotes in the name
-safe_name = peer_name.replace('"', '\\"')
+# Sanitize name: single line, escape quotes, strip control chars
+safe_name = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', peer_name)
+safe_name = safe_name.replace('\\', '\\\\').replace('"', '\\"')
+safe_name = safe_name.strip()[:100]  # Cap length
 
 peer_entry = (
     f'  - github: "{peer_github}"\n'
@@ -559,6 +577,7 @@ with open(config_path) as f:
 if "peers: []" in text:
     text = text.replace("peers: []", "peers:\n" + peer_entry)
 else:
+    # Ensure clean separation from existing entries
     text = text.rstrip() + "\n" + peer_entry + "\n"
 
 with open(config_path, "w") as f:
@@ -568,7 +587,7 @@ print("UPDATED")
 PYEOF
 ```
 
-### Step 8 -- Create or update person walnut
+### Step 9 -- Create or update person walnut
 
 Check if a person walnut exists for this peer:
 
@@ -606,7 +625,7 @@ links: []
 ---
 ```
 
-### Step 9 -- Confirm
+### Step 10 -- Confirm
 
 ```
 ╭─ 🐿️ peer invited
@@ -696,9 +715,9 @@ gh api "/user/repository_invitations/$INVITATION_ID" -X PATCH 2>&1
 After accepting, fetch the peer's public key via the Contents API (no full clone needed for just one file):
 
 ```bash
-mkdir -p "$WORLD_ROOT/.alive/relay/peer-keys"
+mkdir -p "$WORLD_ROOT/.alive/relay-keys/peers"
 gh api "repos/$PEER_OWNER/walnut-relay/contents/keys/$PEER_OWNER.pem" \
-  --jq '.content' | base64 -d > "$WORLD_ROOT/.alive/relay/peer-keys/$PEER_OWNER.pem" 2>&1
+  --jq '.content' | base64 -d > "$WORLD_ROOT/.alive/relay-keys/peers/$PEER_OWNER.pem" 2>&1
 ```
 
 If the key file doesn't exist yet (peer hasn't finished setup), warn but continue:
@@ -741,7 +760,7 @@ If yes, run the full `/alive:relay setup` flow (Steps 2 through 7). After setup 
 If the human has their own relay (either pre-existing or just created), push their public key to the peer's relay via the Contents API so the peer can encrypt packages for them:
 
 ```bash
-PUBLIC_KEY_B64=$(base64 < "$WORLD_ROOT/.alive/relay/public.pem" | tr -d '\n')
+PUBLIC_KEY_B64=$(base64 < "$WORLD_ROOT/.alive/relay-keys/public.pem" | tr -d '\n')
 
 gh api "repos/$PEER_OWNER/walnut-relay/contents/keys/$GITHUB_USERNAME.pem" \
   -X PUT \
@@ -851,7 +870,7 @@ Read `$WORLD_ROOT/.alive/relay.yaml` and parse the relay and peers sections.
 Sync the local clone and update relay metadata:
 
 ```bash
-cd "$WORLD_ROOT/.alive/relay/repo" && git pull --quiet 2>&1
+cd "$WORLD_ROOT/.alive/relay" && git pull --quiet 2>&1
 ```
 
 For each peer, check if they've accepted by querying the collaborators list:
@@ -864,7 +883,7 @@ gh api "repos/$GITHUB_USERNAME/walnut-relay/collaborators" \
 Compare against the peer list. Update `status:`, `last_sync`, and `last_commit` in relay.yaml:
 
 ```bash
-python3 - "$WORLD_ROOT/.alive/relay.yaml" "$WORLD_ROOT/.alive/relay/repo" << 'PYEOF'
+python3 - "$WORLD_ROOT/.alive/relay.yaml" "$WORLD_ROOT/.alive/relay" << 'PYEOF'
 import sys, datetime, subprocess, re, os
 
 config_path = sys.argv[1]
@@ -893,28 +912,70 @@ print("SYNCED")
 PYEOF
 ```
 
-To update peer status from pending to accepted, compare the collaborators list against the YAML and update using the Edit tool (read the current status line, replace `"pending"` with `"accepted"` for matching usernames).
+Update peer status from pending to accepted based on the collaborators list:
+
+```bash
+python3 - "$WORLD_ROOT/.alive/relay.yaml" "$COLLABORATORS_JSON" << 'PYEOF'
+import sys, json, re
+
+config_path = sys.argv[1]
+collaborators_json = sys.argv[2]
+
+collaborators = json.loads(collaborators_json)
+collab_set = set(c.lower() for c in collaborators)
+
+with open(config_path) as f:
+    text = f.read()
+
+# Find peer blocks and update status for accepted collaborators
+lines = text.split('\n')
+updated_lines = []
+i = 0
+while i < len(lines):
+    line = lines[i]
+    updated_lines.append(line)
+
+    # Detect a peer github line
+    m = re.match(r'^(\s+github:\s*)"?([^"\s]+)"?\s*$', line)
+    if m:
+        peer_gh = m.group(2).lower()
+        # Look ahead for the status line within this peer block
+        j = i + 1
+        while j < len(lines) and lines[j].startswith('    ') and not lines[j].strip().startswith('- '):
+            if 'status:' in lines[j] and peer_gh in collab_set:
+                lines[j] = re.sub(r'status:\s*"pending"', 'status: "accepted"', lines[j])
+            j += 1
+    i += 1
+
+with open(config_path, 'w') as f:
+    f.write('\n'.join(lines))
+
+print("STATUS_UPDATED")
+PYEOF
+```
+
+Where `$COLLABORATORS_JSON` is the output from the `gh api` call above.
 
 ### Step 4 -- Count pending packages
 
 Check the local sparse clone for packages in your inbox:
 
 ```bash
-find "$WORLD_ROOT/.alive/relay/repo/inbox/$GITHUB_USERNAME" \
+find "$WORLD_ROOT/.alive/relay/inbox/$GITHUB_USERNAME" \
   -name "*.walnut" -type f 2>/dev/null | wc -l
 ```
 
 List package details (filename, sender from path, modification date):
 
 ```bash
-find "$WORLD_ROOT/.alive/relay/repo/inbox/$GITHUB_USERNAME" \
+find "$WORLD_ROOT/.alive/relay/inbox/$GITHUB_USERNAME" \
   -name "*.walnut" -type f 2>/dev/null -exec ls -lh {} \;
 ```
 
 ### Step 5 -- Verify private key permissions
 
 ```bash
-ls -l "$WORLD_ROOT/.alive/relay/private.pem" | awk '{print $1}'
+ls -l "$WORLD_ROOT/.alive/relay-keys/private.pem" | awk '{print $1}'
 ```
 
 If not `-rw-------`, include a warning in the status output.
@@ -925,7 +986,7 @@ If not `-rw-------`, include a warning in the status output.
 ╭─ 🐿️ relay status
 │
 │  Relay:     <username>/walnut-relay
-│  Clone:     .alive/relay/repo/
+│  Clone:     .alive/relay/
 │  Keypair:   RSA-4096 (private key local, public key on relay)
 │  Last sync: <timestamp>
 │
@@ -970,16 +1031,16 @@ relay:
   repo: "patrickSupernormal/walnut-relay"
 
   # Path to the local sparse clone (relative to world root)
-  local: ".alive/relay/repo"
+  local: ".alive/relay/"
 
   # Authenticated GitHub username
   github_username: "patrickSupernormal"
 
   # Path to RSA private key (relative to world root, never committed anywhere)
-  private_key: ".alive/relay/private.pem"
+  private_key: ".alive/relay-keys/private.pem"
 
   # Path to RSA public key (relative to world root)
-  public_key: ".alive/relay/public.pem"
+  public_key: ".alive/relay-keys/public.pem"
 
   # Last time the relay was synced (ISO 8601 UTC)
   last_sync: "2026-03-27T12:00:00Z"
@@ -1012,8 +1073,8 @@ peers:
 
 - `relay.repo` -- always `<username>/walnut-relay`. Convention, like `.ssh`.
 - `relay.local` -- the sparse clone directory. Only checks out `inbox/<own-username>/` and `keys/`.
-- `relay.private_key` -- the RSA-4096 private key. Permissions must be 600. Never leaves the local machine. Never committed to any repo.
-- `relay.public_key` -- the RSA-4096 public key. Committed to `keys/<username>.pem` in the relay repo. Peers fetch it to encrypt packages for you.
+- `relay.private_key` -- the RSA-4096 private key at `.alive/relay-keys/private.pem`. Permissions must be 600. Never leaves the local machine. Never committed to any repo.
+- `relay.public_key` -- the RSA-4096 public key at `.alive/relay-keys/public.pem`. Committed to `keys/<username>.pem` in the relay repo. Peers fetch it to encrypt packages for you.
 - `peers[].relay` -- the peer's relay repo. Used by `alive:share` to push packages via the Contents API.
 - `peers[].person_walnut` -- canonical location of the peer's person walnut. The person walnut holds the authoritative identity; relay.yaml caches for speed.
 - `peers[].status` -- `"pending"` until the peer accepts the collaborator invitation, then `"accepted"`.
@@ -1021,7 +1082,7 @@ peers:
 **What is NOT stored here:**
 
 - Passphrases. Relay encryption uses RSA keypairs (epic decision #4). No passphrases involved in relay transport. Passphrase encryption remains available for manual shares via alive:share.
-- Private keys of peers. Only your own private key path is stored. Peer public keys are fetched from their relay repos and cached locally at `.alive/relay/peer-keys/<username>.pem`.
+- Private keys of peers. Only your own private key path is stored. Peer public keys are fetched from their relay repos and cached locally at `.alive/relay-keys/peers/<username>.pem`.
 - Full person walnut data. Only the path is cached; the person walnut is the source of truth.
 
 ---
@@ -1032,26 +1093,26 @@ After setup, the relay creates this structure under `.alive/`:
 
 ```
 .alive/
-  relay.yaml                    Config file (schema above)
-  relay/
-    private.pem                 RSA-4096 private key (chmod 600)
-    public.pem                  RSA-4096 public key
-    peer-keys/                  Cached peer public keys
-      benflint.pem              Fetched from benflint's relay
-      carol-smith.pem           Fetched from carol-smith's relay
-    repo/                       Sparse clone of own relay repo
-      .git/
-      keys/
-        patrickSupernormal.pem  Own public key (committed)
-        benflint.pem            Peer's public key (committed by peer)
-      inbox/
-        patrickSupernormal/     Own inbox (sparse checkout)
-          .gitkeep
+  relay.yaml                      Config file (schema above)
+  relay/                          Sparse clone of own relay repo
+    .git/
+    keys/
+      patrickSupernormal.pem      Own public key (committed)
+      benflint.pem                Peer's public key (committed by peer)
+    inbox/
+      patrickSupernormal/         Own inbox (sparse checkout)
+        .gitkeep
+  relay-keys/                     Local key storage (NOT in git)
+    private.pem                   RSA-4096 private key (chmod 600)
+    public.pem                    RSA-4096 public key
+    peers/                        Cached peer public keys
+      benflint.pem                Fetched from benflint's relay
+      carol-smith.pem             Fetched from carol-smith's relay
 ```
 
-**Key separation:** The private key lives at `.alive/relay/private.pem`, outside the git-managed `repo/` directory. It is never committed anywhere. The `repo/` directory is a sparse clone -- only `inbox/<own-username>/` and `keys/` are checked out.
+**Key separation:** `.alive/relay/` is the sparse git clone -- only `inbox/<own-username>/` and `keys/` are checked out. `.alive/relay-keys/` holds local key material, completely separate from the git-managed directory. The private key never enters any git repo.
 
-**Peer keys directory:** `.alive/relay/peer-keys/` caches peer public keys fetched from their relay repos. These are used by `alive:share` to encrypt packages. They are separate from the `repo/keys/` directory which is the git-managed exchange point.
+**Peer keys directory:** `.alive/relay-keys/peers/` caches peer public keys fetched from their relay repos. These are used by `alive:share` to encrypt packages. The `relay/keys/` directory inside the clone is the git-managed exchange point where peers commit their public keys.
 
 ---
 
@@ -1062,7 +1123,7 @@ After setup, the relay creates this structure under `.alive/`:
 **Relay repo force-pushed (compaction):** The local sparse clone handles this:
 
 ```bash
-cd "$WORLD_ROOT/.alive/relay/repo" && \
+cd "$WORLD_ROOT/.alive/relay" && \
   git fetch origin && \
   BRANCH=$(git branch --show-current) && \
   git reset --hard "origin/$BRANCH" 2>&1
