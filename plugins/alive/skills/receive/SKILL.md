@@ -13,6 +13,8 @@ A `.walnut` file is always a single gzip-compressed tar archive. Three scopes: f
 
 **Relay packages** are pulled from the local relay inbox (`.alive/relay/inbox/<username>/`). They use RSA encryption (`payload.enc` + `payload.key`) and are auto-decrypted using the local private key -- no passphrase prompt needed. When a manually-received package contains a `relay:` field in its manifest, the skill offers to bootstrap a relay connection with the sender.
 
+**Relay encryption model (epic decisions #4/#5):** Relay transport uses RSA-4096 keypairs, NOT stored passphrases. Public keys are exchanged via relay repos; encryption/decryption is automatic. The `relay.yaml` schema does not include peer passphrases -- this is by design. Passphrase-based encryption remains available for manual shares only (via `alive:share` without relay). When this skill detects `payload.key` alongside `payload.enc`, it uses RSA decryption. When only `payload.enc` is present (manual share), it prompts for a passphrase.
+
 ---
 
 ## Prerequisites
@@ -82,7 +84,8 @@ Fetch packages from the local relay inbox. Triggered by:
 
 - `/alive:receive --relay` (explicit)
 - The squirrel acting on the session-start hook notification ("N packages waiting on the relay")
-- The relay skill's status flow: when `/alive:relay status` shows pending packages and the human picks "Import", the relay skill passes each package path to `/alive:receive` as a direct invocation (entry point 1). The `RELAY_SOURCE` auto-detection (see 3d) handles cleanup.
+- `/alive:relay pull` (delegates to `/alive:receive --relay`)
+- The relay skill's status flow: when `/alive:relay status` shows pending packages and the human picks "Import", the relay skill invokes `/alive:receive --relay`
 
 **Relay pull flow:**
 
@@ -291,15 +294,37 @@ The `RELAY_SOURCE` flag tells Step 2 to attempt RSA auto-decryption and tells St
 **Auto-detection for non-relay entry points:** If entry points 1 or 2 receive a package path that resolves inside the relay inbox (`$WORLD_ROOT/<relay.local>/inbox/`), automatically set `RELAY_SOURCE=true`. This ensures cleanup works correctly regardless of how the receive skill was invoked:
 
 ```bash
-# Check if the package path is inside the relay inbox
-PACKAGE_REAL="$(cd "$(dirname "<package-path>")" 2>/dev/null && pwd -P)/$(basename "<package-path>")"
-RELAY_LOCAL=$(grep '^ *local:' "$WORLD_ROOT/.alive/relay.yaml" 2>/dev/null | head -1 | sed 's/^.*local: *"*\([^"]*\)"*/\1/' | tr -d '[:space:]')
-if [ -n "$RELAY_LOCAL" ]; then
-  RELAY_INBOX_REAL="$(cd "$WORLD_ROOT/$RELAY_LOCAL" 2>/dev/null && pwd -P)/inbox"
-  case "$PACKAGE_REAL" in
-    "$RELAY_INBOX_REAL"/*) RELAY_SOURCE=true ;;
-  esac
-fi
+python3 -c "
+import sys, os, re
+world_root = sys.argv[1]
+package_path = sys.argv[2]
+
+config_path = os.path.join(world_root, '.alive', 'relay.yaml')
+if not os.path.isfile(config_path):
+    print('NOT_RELAY')
+    sys.exit(0)
+
+with open(config_path) as f:
+    text = f.read()
+
+m = re.search(r'local:\s*\"([^\"\\n]+)\"', text)
+if not m:
+    print('NOT_RELAY')
+    sys.exit(0)
+
+relay_local = m.group(1).strip()
+if not relay_local or os.path.isabs(relay_local) or '..' in relay_local.split(os.sep):
+    print('NOT_RELAY')
+    sys.exit(0)
+
+inbox_real = os.path.realpath(os.path.join(world_root, relay_local, 'inbox'))
+package_real = os.path.realpath(package_path)
+
+if package_real.startswith(inbox_real + os.sep):
+    print('RELAY_SOURCE')
+else:
+    print('NOT_RELAY')
+" "$WORLD_ROOT" "<package-path>"
 ```
 
 Process packages sequentially. Between packages, confirm continuation:
