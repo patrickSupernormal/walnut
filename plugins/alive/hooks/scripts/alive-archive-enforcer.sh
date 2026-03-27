@@ -40,8 +40,8 @@ while IFS= read -r path; do
     resolved="$path"
   fi
 
-  # Canonicalize to collapse .. segments and prevent path traversal bypasses
-  resolved="$(python3 -c 'import os,sys;print(os.path.normpath(sys.argv[1]))' "$resolved")"
+  # Canonicalize to resolve symlinks, .., and other indirections
+  resolved="$(python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$resolved")"
 
   # Allow deletions in system temp directories (not part of the ALIVE world)
   case "$resolved" in
@@ -50,9 +50,11 @@ while IFS= read -r path; do
       ;;
   esac
 
-  # Allow git operations (rm) inside the relay clone directory
+  # Allow git operations (rm) inside the relay clone directory.
+  # Both paths are resolved via realpath to prevent symlink escape.
+  RELAY_DIR="$(python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$WORLD_ROOT/.alive/relay")"
   case "$resolved" in
-    "$WORLD_ROOT"/.alive/relay/*)
+    "$RELAY_DIR"/*)
       continue
       ;;
   esac
