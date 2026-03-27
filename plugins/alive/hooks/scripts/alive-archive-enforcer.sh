@@ -21,6 +21,9 @@ TARGET=$(echo "$COMMAND" | sed -E 's/.*\b(rm|rmdir|unlink)\s+(-[^ ]+ )*//' | tr 
 # Use cwd from JSON input for resolving relative paths
 RESOLVE_DIR="${HOOK_CWD:-$PWD}"
 
+# Pre-resolve relay directory once (used in per-path exemption check)
+RELAY_DIR="$(python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$WORLD_ROOT/.alive/relay")"
+
 while IFS= read -r path; do
   [ -z "$path" ] && continue
 
@@ -52,7 +55,6 @@ while IFS= read -r path; do
 
   # Allow git operations (rm) inside the relay clone directory.
   # Both paths are resolved via realpath to prevent symlink escape.
-  RELAY_DIR="$(python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$WORLD_ROOT/.alive/relay")"
   case "$resolved" in
     "$RELAY_DIR"/*)
       continue
