@@ -84,8 +84,9 @@ Fetch packages from the local relay inbox. Triggered by:
 
 - `/alive:receive --relay` (explicit)
 - The squirrel acting on the session-start hook notification ("N packages waiting on the relay")
-- `/alive:relay pull` (delegates to `/alive:receive --relay`)
-- The relay skill's status flow: when `/alive:relay status` shows pending packages and the human picks "Import", the relay skill invokes `/alive:receive --relay`
+- The relay skill passing individual package paths via `/alive:receive <path>` (from status or pull flows). The auto-detection in 3d sets `RELAY_SOURCE` based on the path being inside the relay inbox.
+
+**Note:** The relay skill (fn-2-edx.1) does not yet define a `pull` subcommand. The session-start hook notification mentions `/alive:receive` directly. If a `pull` subcommand is added to the relay skill later, it should delegate to `/alive:receive --relay`.
 
 **Relay pull flow:**
 
@@ -218,18 +219,29 @@ If invalid local path or invalid username:
 Pull with credential prompts disabled and check exit code. Use `--ff-only` to prevent merge commits; if the remote was force-pushed (compaction), fall back to fetch+reset. Use `$RELAY_LOCAL` from 3a:
 
 ```bash
+CLONE_DIR="$WORLD_ROOT/$RELAY_LOCAL"
+
 # Prevent git from prompting for credentials (would hang)
 export GIT_TERMINAL_PROMPT=0
 
 # Try fast-forward pull first
-if git -C "$WORLD_ROOT/$RELAY_LOCAL" pull --ff-only --quiet 2>&1; then
+if git -C "$CLONE_DIR" pull --ff-only --quiet 2>&1; then
   echo "PULLED"
 else
-  # Fast-forward failed (force push, diverged) -- fetch and reset
-  BRANCH=$(git -C "$WORLD_ROOT/$RELAY_LOCAL" branch --show-current 2>/dev/null || echo "main")
-  if git -C "$WORLD_ROOT/$RELAY_LOCAL" fetch --quiet 2>/dev/null && \
-     git -C "$WORLD_ROOT/$RELAY_LOCAL" reset --hard "origin/$BRANCH" --quiet 2>/dev/null; then
-    echo "RESET_TO_REMOTE"
+  # Fast-forward failed (force push, diverged) -- fetch and reset to remote HEAD
+  if git -C "$CLONE_DIR" fetch --quiet origin 2>/dev/null; then
+    # Derive the remote default branch deterministically
+    REMOTE_HEAD=$(git -C "$CLONE_DIR" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
+    if [ -z "$REMOTE_HEAD" ]; then
+      # Fallback: try current branch, then "main"
+      REMOTE_HEAD=$(git -C "$CLONE_DIR" branch --show-current 2>/dev/null)
+      [ -z "$REMOTE_HEAD" ] && REMOTE_HEAD="main"
+    fi
+    if git -C "$CLONE_DIR" reset --hard "origin/$REMOTE_HEAD" --quiet 2>/dev/null; then
+      echo "RESET_TO_REMOTE"
+    else
+      echo "PULL_FAILED"
+    fi
   else
     echo "PULL_FAILED"
   fi
@@ -345,7 +357,7 @@ After each package is successfully imported via the full receive flow (Steps 1-9
 
 If multiple packages are imported in sequence, batch the git cleanup -- remove all successfully imported packages in a single commit:
 
-Derive repo-relative paths from the full package paths returned by `find` in step 3c. Use basenames to construct the inbox-relative path:
+Derive repo-relative paths from the full package paths returned by `find` in step 3c. Use basenames to construct the inbox-relative path. Use `--ignore-unmatch` so already-removed files don't break the batch:
 
 ```bash
 cd "$WORLD_ROOT/$RELAY_LOCAL"
@@ -353,11 +365,12 @@ cd "$WORLD_ROOT/$RELAY_LOCAL"
 # Prevent git from prompting for credentials
 export GIT_TERMINAL_PROMPT=0
 
-# Remove each successfully imported package using basename for safety
-git rm "inbox/$GITHUB_USERNAME/$(basename '<full-path-to-package-1>')" 2>&1
-git rm "inbox/$GITHUB_USERNAME/$(basename '<full-path-to-package-2>')" 2>&1
+# Loop over successfully imported package paths (stored in conversation state)
+for pkg in "<full-path-1>" "<full-path-2>"; do
+  git rm --ignore-unmatch -- "inbox/$GITHUB_USERNAME/$(basename "$pkg")" 2>&1 || true
+done
 
-# Only commit and push if there are staged removals
+# Only commit and push if there are staged changes
 if ! git diff --cached --quiet 2>/dev/null; then
   git commit -m "relay: received" 2>&1
   git push 2>&1
@@ -1739,7 +1752,7 @@ For capsule imports, offer to open the target walnut (not the capsule directly -
 
 **Bootstrap -- offline during join:** If `gh api` calls fail during bootstrap, skip the relay join silently and continue with the package import. The human can join later.
 
-**RSA decryption -- payload.key present but not from relay:** Theoretically impossible in normal operation (only the share skill creates payload.key), but handle gracefully. If RSA decryption fails, offer passphrase fallback.
+**RSA decryption -- payload.key present but decrypt fails:** If `RELAY_SOURCE=true` (package from relay inbox), abort the import -- relay packages are always RSA-encrypted and passphrase fallback is not applicable. If `RELAY_SOURCE=false` (manually received package that happens to have `payload.key`), abort with guidance to ask sender to re-share. In no case offer passphrase fallback for packages containing `payload.key` -- the passphrase mode and RSA mode are mutually exclusive encryption paths.
 
 ---
 
