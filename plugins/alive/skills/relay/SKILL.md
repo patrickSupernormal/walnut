@@ -313,7 +313,7 @@ import sys, datetime, subprocess, os
 
 world_root = sys.argv[1]
 username = sys.argv[2]
-repo_dir = os.path.join(world_root, ".alive", "relay", "repo")
+repo_dir = os.path.join(world_root, ".alive", "relay")
 
 # Get current commit hash
 commit = subprocess.check_output(
@@ -873,11 +873,12 @@ Sync the local clone and update relay metadata:
 cd "$WORLD_ROOT/.alive/relay" && git pull --quiet 2>&1
 ```
 
-For each peer, check if they've accepted by querying the collaborators list:
+For each peer, check if they've accepted by querying the collaborators list and capturing the result:
 
 ```bash
-gh api "repos/$GITHUB_USERNAME/walnut-relay/collaborators" \
-  --jq '[.[] | .login]' 2>&1
+COLLABORATORS_JSON=$(gh api "repos/$GITHUB_USERNAME/walnut-relay/collaborators" \
+  --jq '[.[] | .login]' 2>&1)
+echo "$COLLABORATORS_JSON"
 ```
 
 Compare against the peer list. Update `status:`, `last_sync`, and `last_commit` in relay.yaml:
