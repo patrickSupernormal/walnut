@@ -40,6 +40,9 @@ while IFS= read -r path; do
     resolved="$path"
   fi
 
+  # Canonicalize to collapse .. segments and prevent path traversal bypasses
+  resolved="$(python3 -c 'import os,sys;print(os.path.normpath(sys.argv[1]))' "$resolved")"
+
   # Allow deletions in system temp directories (not part of the ALIVE world)
   case "$resolved" in
     /tmp/*|/var/*|/private/tmp/*|/private/var/*)
