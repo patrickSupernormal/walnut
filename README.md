@@ -1,8 +1,4 @@
 <p align="center">
-  <img src="alive-hero.png" alt="ALIVE Context System — a living context system for Claude Code" width="100%">
-</p>
-
-<p align="center">
   <a href="https://github.com/stackwalnuts/walnut/stargazers"><img src="https://img.shields.io/github/stars/stackwalnuts/walnut?style=flat&color=F97316&label=Stars" alt="GitHub Stars"></a>
   <a href="https://github.com/stackwalnuts/walnut/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
   <a href="https://walnut.world"><img src="https://img.shields.io/badge/walnut.world-marketplace-brightgreen" alt="walnut.world"></a>
@@ -22,10 +18,6 @@ claude plugin install alive@walnut
 ```
 
 ---
-
-<p align="center">
-  <img src="alive-demo.png" alt="ALIVE Context System in action — stash catching decisions, loading project context" width="700">
-</p>
 
 ---
 
@@ -75,7 +67,7 @@ Bundles are how work gets done inside a walnut. Each bundle has a specific **out
 ```yaml
 # context.manifest.yaml
 name: website-rebuild
-outcome: "Ship hypha.nz from strategy deck to production"
+outcome: "Ship the website from strategy deck to production"
 species: outcome        # outcome | evergreen
 phase: prototype        # draft | prototype | published | done
 sensitivity: private    # open | private | restricted
@@ -118,23 +110,23 @@ People sit outside the ALIVE acronym because they cross-cut everything. They're 
 
 ## The Squirrel
 
-Your named context companion. Set in preferences:
+Your named context companion. You name it in preferences — it's yours.
 
 ```yaml
-squirrel_name: Toby
+squirrel_name: # you choose
 ```
 
-Every session is Toby. Same identity, persistent relationship. Context operations show up as bordered blocks:
+Same identity across every session. Persistent relationship. Context operations show up as bordered blocks:
 
 ```
-╭─ 🐿️ Toby +2 stash (5)
+╭─ 🐿️ +2 stash (5)
 │   React Native for mobile app → my-startup
 │   Chase Jake for API specs → my-startup
 │   → drop?
 ╰─
 ```
 
-Toby reads your context before speaking, catches decisions mid-conversation, surfaces connections you'd miss, and logs everything at save. The squirrel is an additive persona layer — your agent keeps its own voice, Toby adds the context awareness.
+Your squirrel reads your context before speaking, catches decisions mid-conversation, surfaces connections you'd miss, and logs everything at save. It's an additive persona layer — your agent keeps its own voice, the squirrel adds the context awareness.
 
 ---
 
