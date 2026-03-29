@@ -238,11 +238,9 @@ Git-track your world locally for version history. Push to a remote if you want b
 
 ## The Research Lab
 
-Stack Walnuts is a research lab exploring the future of human productivity, creativity, and entrepreneurship. We believe we are entering the renaissance. Entrepreneurship is open to everyone now.
+Lockin Lab is a research lab exploring the future of productivity, creativity, and entrepreneurship. We believe we are entering a renaissance where entrepreneurship is open to everyone.
 
-The ALIVE Context System is our first product. We're not saying markdown is the best format. We're finding out what the best is. Every decision in this system is backed by research — from [Anthropic's persona selection model](https://www.anthropic.com/research/persona-selection-model) to [context engineering principles](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents). No holds barred.
-
-[walnut.world](https://walnut.world) is where you share what you build — bundles, skills, workflows, entire methodologies. Context products for the distributed internet.
+The ALIVE Context System is our first product. We're not saying markdown is the best format forever. We're finding out what the best is. Every decision in this system is backed by research.
 
 ---
 
