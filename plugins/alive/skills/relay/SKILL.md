@@ -786,7 +786,20 @@ HAS_REAL_RELAY="YES"
 
 Continue to Step 5.
 
-**If "Later":** Skip Steps 5 and 6 entirely (no relay means no keys to push and no repo to invite into). Jump directly to Step 7 (display name prompt).
+**If "Later":** No relay means no keys to push and no repo to invite into. Show the guidance note, clean up the persistence file, then skip Steps 5 and 6 -- jump directly to Step 7 (display name prompt):
+
+```
+╭─ 🐿️ heads up
+│
+│  To send packages back to <peer-owner>, set up your relay:
+│  /alive:relay setup
+│  Then invite them: /alive:relay peer add <peer-owner>
+╰─
+```
+
+```bash
+rm -f "$WORLD_ROOT/.alive/.peer_accept_pending"
+```
 
 ### Step 5 -- Push own public key to peer's relay
 
@@ -822,15 +835,10 @@ else
 fi
 ```
 
-**If `SKIP_INVITE` is `true`:** Show guidance and skip to Step 7:
+**If `SKIP_INVITE` is `true`:** This is an edge case (e.g., `PEER_OWNER` was lost despite persistence). Clean up and skip to Step 7:
 
-```
-╭─ 🐿️ heads up
-│
-│  To send packages back to <peer-owner>, set up your relay:
-│  /alive:relay setup
-│  Then invite them: /alive:relay peer add <peer-owner>
-╰─
+```bash
+rm -f "$WORLD_ROOT/.alive/.peer_accept_pending"
 ```
 
 **If `SKIP_INVITE` is `false`:** Check collaborator state. Parse only the HTTP status line (starts with `HTTP/`):
@@ -896,11 +904,29 @@ rm -f "$WORLD_ROOT/.alive/.peer_accept_pending"
 **Only prompt when creating a new person walnut.** First, search for an existing person walnut by BOTH path AND `github:` field in key.md frontmatter (case-insensitive):
 
 ```bash
-# Search by github field across all person walnuts (case-insensitive)
-EXISTING_BY_GITHUB=$(grep -rli "github:.*$PEER_OWNER" "$WORLD_ROOT/02_Life/people/"*"/_core/key.md" 2>/dev/null | head -1)
+# Search by github field in key.md frontmatter (exact match, case-insensitive)
+# Uses Python to avoid substring false positives (e.g., "ben" matching "benflint")
+EXISTING_BY_GITHUB=$(python3 - "$WORLD_ROOT" "$PEER_OWNER" << 'PYEOF'
+import sys, os, re, glob
+
+world_root = sys.argv[1]
+peer = sys.argv[2].lower()
+
+for key_file in glob.glob(os.path.join(world_root, "02_Life/people/*/\_core/key.md")):
+    with open(key_file) as f:
+        for line in f:
+            m = re.match(r'^\s*github:\s*["\']?([^"\'\s]+)["\']?\s*$', line)
+            if m and m.group(1).lower() == peer:
+                print(key_file)
+                sys.exit(0)
+            if line.strip() == '---' and not line.startswith('---'):
+                break  # past frontmatter
+PYEOF
+)
 
 # Search by slug match (GitHub username as slug, lowercased)
 PEER_SLUG_DEFAULT=$(echo "$PEER_OWNER" | tr '[:upper:]' '[:lower:]')
+EXISTING_BY_PATH=""
 if [ -d "$WORLD_ROOT/02_Life/people/$PEER_SLUG_DEFAULT" ]; then
   EXISTING_BY_PATH="$WORLD_ROOT/02_Life/people/$PEER_SLUG_DEFAULT"
 fi
@@ -1014,6 +1040,12 @@ This partial config allows `/alive:relay setup` to detect it later and fill in t
 Same as peer add Step 9 -- check if a person walnut exists for the inviter (using the search from Step 7), create or update it with `github:` and `relay:` fields. Use the display name from Step 7 for the walnut goal and relay.yaml `name:` field.
 
 ### Step 10 -- Confirm
+
+**Final cleanup** (belt-and-suspenders -- remove persistence file if any path missed it):
+
+```bash
+rm -f "$WORLD_ROOT/.alive/.peer_accept_pending"
+```
 
 ```
 ╭─ 🐿️ relay connected
