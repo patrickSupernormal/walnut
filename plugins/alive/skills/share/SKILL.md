@@ -499,8 +499,8 @@ Read the peer list, filter to `status: "accepted"`, then probe each peer's relay
 **Reachability check:** For each accepted peer, verify their relay repo is accessible via the GitHub API. Use explicit timeout wrapping (same pattern as `alive-relay-check.sh`):
 
 ```bash
-eval "$(python3 - "$WORLD_ROOT/.alive/relay.yaml" << 'PYEOF'
-import sys, re, subprocess, time, shlex
+PEERS_DATA=$(python3 - "$WORLD_ROOT/.alive/relay.yaml" << 'PYEOF'
+import sys, re, subprocess, time, json
 
 config_path = sys.argv[1]
 with open(config_path) as f:
@@ -523,7 +523,6 @@ for block in blocks:
             })
 
 if not peers:
-    print("PEERS=()")
     print("PEER_COUNT=0")
     sys.exit(0)
 
@@ -564,29 +563,26 @@ for p in peers:
     except Exception:
         p["status"] = "OTHER_ERROR"
 
-# Emit bash-safe indexed PEERS array (values shell-escaped for spaces)
-print("PEERS=()")
+# Emit one line per peer: index|github|relay|name|status
+# Pipe-delimited to safely handle spaces in names
 for i, p in enumerate(peers):
-    # shlex.quote handles names with spaces, special chars
-    val = f"github={shlex.quote(p['github'])} relay={shlex.quote(p['relay'])} name={shlex.quote(p['name'])} status={p['status']}"
-    print(f"PEERS[{i+1}]={shlex.quote(val)}")
+    print(f"{i+1}|{p['github']}|{p['relay']}|{p['name']}|{p['status']}")
 print(f"PEER_COUNT={len(peers)}")
 PYEOF
-)"
+)
+
+echo "$PEERS_DATA"
 ```
 
-The `eval` populates a `PEERS` bash array with shell-safe quoting (via `shlex.quote`) so names with spaces are handled correctly. Each entry has four space-separated key=value fields: `github`, `relay`, `name`, `status`.
+The output uses pipe-delimited lines (one per peer) to safely handle names with spaces. The last line is `PEER_COUNT=N`. Example:
 
-If `PEER_COUNT=0`, skip relay push. Surface a brief note only if the human explicitly mentioned relay during the session, otherwise skip silently.
-
-Example of what the Python emits (before eval):
-
-```bash
-PEERS=()
-PEERS[1]='github=benflint relay=benflint/walnut-relay name='\''Ben Flint'\'' status=OK'
-PEERS[2]='github=carolsmith relay=carolsmith/walnut-relay name='\''Carol Smith'\'' status=NOT_FOUND_OR_NO_ACCESS'
+```
+1|benflint|benflint/walnut-relay|Ben Flint|OK
+2|carolsmith|carolsmith/walnut-relay|Carol Smith|NOT_FOUND_OR_NO_ACCESS
 PEER_COUNT=2
 ```
+
+If `PEER_COUNT=0`, skip relay push. Surface a brief note only if the human explicitly mentioned relay during the session, otherwise skip silently.
 
 **Status buckets:**
 
@@ -597,9 +593,9 @@ PEER_COUNT=2
 | `TIMEOUT` | Per-peer network timeout or total 10s budget exceeded | Yes (with note) |
 | `OTHER_ERROR` | Unexpected API error | Yes (with note) |
 
-#### 9c. Present relay push option from PEERS table
+#### 9c. Present relay push option from Step 9b output
 
-Build the menu from the `PEERS` array populated in Step 9b:
+Build the menu from the pipe-delimited peer lines emitted by Step 9b:
 
 ```
 ╭─ 🐿️ relay
@@ -618,16 +614,18 @@ Peers with `NOT_FOUND_OR_NO_ACCESS` status are shown with "(not found or no acce
 
 The last option is always "Skip". If only one peer exists, still show the menu.
 
-**When the human selects a peer (e.g., "1"), extract the three identity variables from `PEERS[$selection]`:**
+**When the human selects a peer (e.g., "1"), extract the three identity variables by parsing the matching pipe-delimited line:**
 
 ```bash
-# Parse fields from PEERS[$selection]
-SELECTED="${PEERS[$selection]}"
-PEER_USERNAME=$(echo "$SELECTED" | grep -oP 'github=\K\S+')
-PEER_RELAY=$(echo "$SELECTED" | grep -oP 'relay=\K\S+')
-PEER_NAME=$(echo "$SELECTED" | sed "s/.*name='\([^']*\)'.*/\1/" )
-# For unquoted names: PEER_NAME=$(echo "$SELECTED" | grep -oP 'name=\K[^ ]+')
+# Find the line starting with the selected index from PEERS_DATA
+SELECTED_LINE=$(echo "$PEERS_DATA" | grep "^${selection}|")
+# Parse pipe-delimited fields: index|github|relay|name|status
+PEER_USERNAME=$(echo "$SELECTED_LINE" | cut -d'|' -f2)
+PEER_RELAY=$(echo "$SELECTED_LINE" | cut -d'|' -f3)
+PEER_NAME=$(echo "$SELECTED_LINE" | cut -d'|' -f4)
 ```
+
+Uses `cut -d'|'` which is portable across macOS and Linux (no PCRE/`grep -P` needed).
 
 These three variables are the **single source of truth** for Steps 9d-9g. They must be declared at the top of the consolidated script block and never re-derived.
 
