@@ -912,15 +912,22 @@ import sys, os, re, glob
 world_root = sys.argv[1]
 peer = sys.argv[2].lower()
 
-for key_file in glob.glob(os.path.join(world_root, "02_Life/people/*/\_core/key.md")):
+for key_file in glob.glob(os.path.join(world_root, "02_Life/people/*/_core/key.md")):
     with open(key_file) as f:
+        in_frontmatter = False
         for line in f:
-            m = re.match(r'^\s*github:\s*["\']?([^"\'\s]+)["\']?\s*$', line)
-            if m and m.group(1).lower() == peer:
-                print(key_file)
-                sys.exit(0)
-            if line.strip() == '---' and not line.startswith('---'):
-                break  # past frontmatter
+            stripped = line.strip()
+            if stripped == '---':
+                if not in_frontmatter:
+                    in_frontmatter = True
+                    continue
+                else:
+                    break  # end of frontmatter
+            if in_frontmatter:
+                m = re.match(r'^\s*github:\s*["\']?([^"\'\s]+)["\']?\s*$', line)
+                if m and m.group(1).lower() == peer:
+                    print(key_file)
+                    sys.exit(0)
 PYEOF
 )
 
@@ -1047,6 +1054,8 @@ Same as peer add Step 9 -- check if a person walnut exists for the inviter (usin
 rm -f "$WORLD_ROOT/.alive/.peer_accept_pending"
 ```
 
+**If `HAS_REAL_RELAY` is `YES` (bidirectional):**
+
 ```
 ╭─ 🐿️ relay connected
 │
@@ -1063,6 +1072,28 @@ Stash:
 ```
 ╭─ 🐿️ +1 stash (N)
 │  Accepted relay invite from <peer-owner> -- bidirectional relay active
+│  → drop?
+╰─
+```
+
+**If `HAS_REAL_RELAY` is `NO` (one-way -- chose "Later"):**
+
+```
+╭─ 🐿️ relay connected (one-way)
+│
+│  Accepted invite from <peer-owner>.
+│  Their public key saved locally for encryption.
+│
+│  You can receive packages from <peer-owner>, but can't send back yet.
+│  Set up your relay when ready: /alive:relay setup
+╰─
+```
+
+Stash:
+
+```
+╭─ 🐿️ +1 stash (N)
+│  Accepted relay invite from <peer-owner> -- one-way (no own relay yet)
 │  → drop?
 ╰─
 ```
