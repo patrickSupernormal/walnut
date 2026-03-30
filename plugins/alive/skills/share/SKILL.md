@@ -494,13 +494,13 @@ If `NO_RELAY`, skip the entire step. The local `.walnut` file stands alone.
 
 #### 9b. Parse peers and check relay reachability
 
-Read the peer list, filter to `status: "accepted"`, then probe each peer's relay repo. The output is a JSON object that Step 9c parses to build the menu and extract peer identity variables.
+Read the peer list, filter to `status: "accepted"`, then probe each peer's relay repo. The output is an indexed `PEERS` bash array that Step 9c uses for selection mapping.
 
 **Reachability check:** For each accepted peer, verify their relay repo is accessible via the GitHub API. Use explicit timeout wrapping (same pattern as `alive-relay-check.sh`):
 
 ```bash
-python3 - "$WORLD_ROOT/.alive/relay.yaml" << 'PYEOF'
-import sys, re, subprocess, time, json
+eval "$(python3 - "$WORLD_ROOT/.alive/relay.yaml" << 'PYEOF'
+import sys, re, subprocess, time, shlex
 
 config_path = sys.argv[1]
 with open(config_path) as f:
@@ -523,8 +523,8 @@ for block in blocks:
             })
 
 if not peers:
-    # Always emit valid JSON, even when no peers
-    print(json.dumps({"peers": []}))
+    print("PEERS=()")
+    print("PEER_COUNT=0")
     sys.exit(0)
 
 # Probe each peer's relay with 5s per-peer timeout, 10s hard total cap.
@@ -535,19 +535,18 @@ total_start = time.time()
 for p in peers:
     remaining = TOTAL_BUDGET - (time.time() - total_start)
     if remaining <= 0:
-        # Budget exhausted -- classified as TIMEOUT (couldn't verify)
         p["status"] = "TIMEOUT"
         continue
     peer_timeout = min(PER_PEER_MAX, remaining)
     try:
-        # Use -i to get HTTP headers; parse status code from first line
+        # Use -i to include HTTP headers; check both stdout and stderr
+        # for the status code (gh may write headers to either stream)
         r = subprocess.run(
             ["gh", "api", f"repos/{p['relay']}", "-i", "--silent"],
             capture_output=True, timeout=peer_timeout
         )
-        stdout = r.stdout.decode()
-        # First line of -i output is "HTTP/2.0 200 OK" or similar
-        status_match = re.search(r'HTTP/[\d.]+ (\d{3})', stdout)
+        combined = r.stdout.decode() + r.stderr.decode()
+        status_match = re.search(r'HTTP/[\d.]+ (\d{3})', combined)
         if status_match:
             code = int(status_match.group(1))
             if 200 <= code < 300:
@@ -565,23 +564,28 @@ for p in peers:
     except Exception:
         p["status"] = "OTHER_ERROR"
 
-# Always emit valid JSON -- safe for names with spaces, special chars
-print(json.dumps({"peers": [
-    {"index": i+1, "github": p["github"], "relay": p["relay"],
-     "name": p["name"], "status": p["status"]}
-    for i, p in enumerate(peers)
-]}))
+# Emit bash-safe indexed PEERS array (values shell-escaped for spaces)
+print("PEERS=()")
+for i, p in enumerate(peers):
+    # shlex.quote handles names with spaces, special chars
+    val = f"github={shlex.quote(p['github'])} relay={shlex.quote(p['relay'])} name={shlex.quote(p['name'])} status={p['status']}"
+    print(f"PEERS[{i+1}]={shlex.quote(val)}")
+print(f"PEER_COUNT={len(peers)}")
 PYEOF
+)"
 ```
 
-The output is always a single JSON line with a `peers` array (empty if no accepted peers). The squirrel parses it to build the menu and extract peer fields by index.
+The `eval` populates a `PEERS` bash array with shell-safe quoting (via `shlex.quote`) so names with spaces are handled correctly. Each entry has four space-separated key=value fields: `github`, `relay`, `name`, `status`.
 
-If `peers` is empty, skip relay push. Surface a brief note only if the human explicitly mentioned relay during the session, otherwise skip silently.
+If `PEER_COUNT=0`, skip relay push. Surface a brief note only if the human explicitly mentioned relay during the session, otherwise skip silently.
 
-Example output:
+Example of what the Python emits (before eval):
 
-```json
-{"peers":[{"index":1,"github":"benflint","relay":"benflint/walnut-relay","name":"Ben Flint","status":"OK"},{"index":2,"github":"carolsmith","relay":"carolsmith/walnut-relay","name":"Carol Smith","status":"NOT_FOUND_OR_NO_ACCESS"}]}
+```bash
+PEERS=()
+PEERS[1]='github=benflint relay=benflint/walnut-relay name='\''Ben Flint'\'' status=OK'
+PEERS[2]='github=carolsmith relay=carolsmith/walnut-relay name='\''Carol Smith'\'' status=NOT_FOUND_OR_NO_ACCESS'
+PEER_COUNT=2
 ```
 
 **Status buckets:**
@@ -593,9 +597,9 @@ Example output:
 | `TIMEOUT` | Per-peer network timeout or total 10s budget exceeded | Yes (with note) |
 | `OTHER_ERROR` | Unexpected API error | Yes (with note) |
 
-#### 9c. Present relay push option from JSON peer list
+#### 9c. Present relay push option from PEERS table
 
-Parse the JSON output from Step 9b. Build the menu from the `peers` array:
+Build the menu from the `PEERS` array populated in Step 9b:
 
 ```
 ╭─ 🐿️ relay
@@ -614,13 +618,15 @@ Peers with `NOT_FOUND_OR_NO_ACCESS` status are shown with "(not found or no acce
 
 The last option is always "Skip". If only one peer exists, still show the menu.
 
-**When the human selects a peer (e.g., "1"), extract the three identity variables from the JSON by matching `index`:**
+**When the human selects a peer (e.g., "1"), extract the three identity variables from `PEERS[$selection]`:**
 
 ```bash
-# From the JSON peers array, entry with index matching selection:
-PEER_USERNAME="benflint"             # .github field
-PEER_RELAY="benflint/walnut-relay"   # .relay field
-PEER_NAME="Ben Flint"               # .name field
+# Parse fields from PEERS[$selection]
+SELECTED="${PEERS[$selection]}"
+PEER_USERNAME=$(echo "$SELECTED" | grep -oP 'github=\K\S+')
+PEER_RELAY=$(echo "$SELECTED" | grep -oP 'relay=\K\S+')
+PEER_NAME=$(echo "$SELECTED" | sed "s/.*name='\([^']*\)'.*/\1/" )
+# For unquoted names: PEER_NAME=$(echo "$SELECTED" | grep -oP 'name=\K[^ ]+')
 ```
 
 These three variables are the **single source of truth** for Steps 9d-9g. They must be declared at the top of the consolidated script block and never re-derived.
