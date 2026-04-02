@@ -33,12 +33,12 @@ Dispatch one subagent to map the territory. It calls `alive:session-history` to 
 - Unsaved stash items from crashed sessions
 
 ```
-╭─ squirrel context rebuild — scouting
+╭─ 🐿️ context rebuild — scouting
 │  Found 5 sessions on this walnut (last 2 weeks)
 │  3 sequential, 2 overlapping (possible conflicts)
 │  12 files touched, 2 bundles active
 │
-│  > Rebuild scope?
+│  ▸ Rebuild scope?
 │  1. All 5 sessions (full rebuild)
 │  2. Last 3 only
 │  3. Just the 2 conflicting sessions
@@ -63,7 +63,7 @@ Each agent returns structured findings. They don't summarise — they return the
 Combine all agent findings into a single reconstructed context:
 
 ```
-╭─ squirrel rebuilt context (5 sessions, 2 conflicts resolved)
+╭─ 🐿️ rebuilt context (5 sessions, 2 conflicts resolved)
 │
 │  Timeline:
 │  +-- 2026-03-10 (session:a8c) — Started competitor research bundle
@@ -89,7 +89,7 @@ Combine all agent findings into a single reconstructed context:
 │  Unresolved conflicts (1):
 │  - Pricing model: per-seat vs usage-based (sessions c7d/d9e)
 │
-│  > How to proceed?
+│  ▸ How to proceed?
 │  1. Accept merged context, resume working
 │  2. Resolve conflicts first
 │  3. Show me the raw findings from each agent
