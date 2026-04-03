@@ -22,6 +22,47 @@ NOT a database dump. NOT a flat list. A living view of their world, grouped by w
    - **Unrouted inputs:** `ls 03_Inbox/ 2>/dev/null | grep -v '^\.' | grep -v '^Icon'` — just the filenames, no deep reads.
    - **API context:** only if context sources are listed in the session start injection (already in your context from the hook — do NOT re-read preferences.yaml).
 5. Compute attention items from fresh checks + index staleness signals
+6. **Inbox triage (background)** — if `03_Inbox/` has items, dispatch a background agent to triage them. Don't wait for it — render the dashboard immediately, the triage results arrive while the human reads.
+
+### Inbox Triage Agent
+
+Dispatch with `run_in_background: true` when inbox has 1+ items. The agent:
+
+1. Reads the subagent brief from the plugin templates (for ALIVE context)
+2. Lists all files in `03_Inbox/` with `ls -la`
+3. For each item, determines:
+   - **Type:** transcript, email, document, screenshot, video, extraction directory, financial, unknown
+   - **Likely destination walnut:** match against the world index (injected in the agent prompt) by keywords, people names, project names
+   - **Priority:** urgent (contains decisions/deadlines), normal, low (reference material)
+   - **Age:** how old is the file
+4. Returns a structured triage report
+
+When the background agent completes, surface the results:
+
+```
+╭─ 🐿️ inbox triaged (8 items)
+│
+│  Urgent
+│   march-expenses.csv              → finance (transactions, needs review)
+│   error-log-april-2.txt           → my-startup (build error from deploy)
+│
+│  Route
+│   team-dinner-recap.mp4           → my-startup (event footage)
+│   fathom-extraction/              → runs via /alive:mine-for-context
+│   otter-extraction/               → runs via /alive:mine-for-context
+│
+│  Auto-route (low priority)
+│   gmail/                          → capture via sync script
+│   slack/                          → capture via sync script
+│
+│  ▸ Route all? Or review one at a time?
+│  1. Route all suggested
+│  2. Review each
+│  3. Skip for now
+╰─
+```
+
+The triage agent gets the world index in its prompt so it knows every walnut, person, and active bundle. It matches by name, keywords, and file type patterns. It does NOT move files — it suggests. The human confirms.
 
 **DO NOT read preferences.yaml** — it's already injected at session start. **DO NOT read individual walnut files** (key.md, now.json, log.md) — the index has everything. **DO NOT read .alive/_squirrels/*.yaml files** — recent sessions are in the index under `recent_sessions:` and unsigned stash count is in `unsigned_with_stash:`. **DO NOT spawn Explore agents or subagents** for the dashboard — use the index and the one bash check above. The entire dashboard should render from data already in context plus 1 fast bash call (inputs listing).
 

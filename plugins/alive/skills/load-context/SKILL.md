@@ -47,6 +47,8 @@ Read these three files. That's it — everything you need to orient.
 
 **DO NOT read any other files at this stage.** No log.md. No bundle manifests. No tasks files. No squirrel entries. All of that data is already in now.json — the projection script aggregated it. Reading source files at load wastes context window on data you already have.
 
+**Inbox triage (background):** After reading the brief pack, check if `03_Inbox/` has items (`ls 03_Inbox/ 2>/dev/null`). If yes, dispatch a background triage agent (same spec as in the world skill — reads items, tags type/destination/priority, returns structured report). Don't wait for it — continue with people resolution and the Spark. Results arrive while you work.
+
 Show `>` reads as you go:
 
 ```
