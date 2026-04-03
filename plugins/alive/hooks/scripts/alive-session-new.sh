@@ -235,9 +235,9 @@ if [ -d "$CUSTOM_SKILLS_DIR" ]; then
     SKILL_DST="$SKILL_DST_DIR/SKILL.md"
     if [ -f "$SKILL_SRC" ]; then
       # Create target dir and symlink if missing or broken
-      if [ ! -L "$SKILL_DST" ] || [ "$(readlink "$SKILL_DST")" != "$SKILL_SRC" ]; then
+      if [ ! -L "$SKILL_DST" ] || [ "$(readlink "$SKILL_DST" 2>/dev/null)" != "$SKILL_SRC" ]; then
         mkdir -p "$SKILL_DST_DIR"
-        ln -sf "$SKILL_SRC" "$SKILL_DST"
+        ln -sf "$SKILL_SRC" "$SKILL_DST" 2>/dev/null || cp -f "$SKILL_SRC" "$SKILL_DST" 2>/dev/null
       fi
     fi
   done
