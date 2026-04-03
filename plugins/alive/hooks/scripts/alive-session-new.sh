@@ -81,7 +81,7 @@ fi
 # Use Claude Code's session ID, fall back to random only if missing
 SESSION_ID="${HOOK_SESSION_ID}"
 if [ -z "$SESSION_ID" ]; then
-  SESSION_ID=$(head -c 16 /dev/urandom | shasum | head -c 8)
+  SESSION_ID=$(head -c 16 /dev/urandom 2>/dev/null | (shasum 2>/dev/null || sha256sum 2>/dev/null || md5sum 2>/dev/null || od -A n -t x1 | tr -d ' \n') | head -c 8)
 fi
 
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S")
