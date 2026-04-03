@@ -516,18 +516,29 @@ Known destinations come from `_kernel/key.md` people/links (loaded in brief pack
 
 ## Unsigned Entry Recovery
 
-If `.alive/_squirrels/` has an entry from a previous session with stash items AND `saves: 0` (genuinely unsaved), surface it. Entries with `saves: 1` or higher have already routed their stash — those items are historical records, not unfinished work. Skip them.
+**CRITICAL: `stash: []` does NOT mean "empty session."** The stash is only written to YAML at save/checkpoint. A session with `saves: 0` will ALWAYS have `stash: []` in the YAML — because it never saved. The real work is in the **transcript JSONL**, not the YAML.
+
+To check if an unsaved session had real work:
+1. Check `saves: 0` — means the session never checkpointed
+2. Check the `transcript:` path — read the JSONL to see if actual conversation happened
+3. **Do NOT assume `stash: []` means no work was done**
+
+If `.alive/_squirrels/` has entries with `saves: 0`:
 
 ```
-╭─ 🐿️ previous session had 6 stash items that were never saved.
+╭─ 🐿️ 5 unsaved sessions found
+│  These sessions never saved — any work exists only in transcripts.
 │
-│  ▸ Review before we start?
-│  1. Yeah, show me
-│  2. Clear and move on
+│  ▸ Review transcripts for lost work?
+│  1. Yeah, check them all (dispatch agents)
+│  2. Show me the list first
+│  3. Clear and move on
 ╰─
 ```
 
-If yes: present the previous stash for routing. If no: clear and move on. The `recovery_state` field tells you where the previous session stopped — use it to orient the human.
+Entries with `saves: 1` or higher have already routed their stash — those items in the YAML are historical records, not unfinished work. But also check `recovery_state:` for context on where the session stopped.
+
+If yes: dispatch agents to read each session's transcript JSONL and extract any decisions, tasks, or context worth routing. If no: clear and move on.
 
 ---
 
