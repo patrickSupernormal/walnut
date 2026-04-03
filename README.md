@@ -16,6 +16,10 @@
 <h3 align="center">Personal Context Manager for Claude Code</h3>
 
 <p align="center">
+  <strong>The agent is replaceable. The runtime is portable. The walnut is permanent.</strong>
+</p>
+
+<p align="center">
   <sub>Agents are instances — ephemeral. Models are utilities — temporary.<br>Context is property — permanent.</sub>
 </p>
 
@@ -93,9 +97,7 @@ Bundles are shareable — your workflow becomes a context product anyone can ins
 
 ## The Runtime
 
-The squirrel is the agent runtime — rules, hooks, skills, and policies that any AI agent inhabits when working inside your world.
-
-The agent is replaceable. The runtime is portable. The walnut is permanent.
+The squirrel is the agent runtime — rules, hooks, skills, and policies that any AI agent inhabits when working inside your world. Why squirrel? 🐿️ Squirrels scatter-hoard — bury context now, retrieve by value later. That's the mechanic.
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -178,6 +180,8 @@ EXIT ──→ Sign session. Final projection.
 ```bash
 claude plugin install alive@alivecontext
 ```
+
+Requires [Claude Code](https://docs.anthropic.com/en/docs/claude-code) + Python 3. Works on macOS, Linux, Windows (WSL).
 
 15 skills, 14 hooks, 6 rule files, templates, and a statusline.
 
