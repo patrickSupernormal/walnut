@@ -30,6 +30,7 @@ This skill has been battle-tested on a 16GB world with 142 walnuts, 88 bundles, 
 | Tasks | N/A | `tasks.md` | `tasks.json` (script-operated) |
 | State | `now.md` | `_kernel/_generated/now.json` | `_kernel/now.json` (script-generated) |
 | Observations | N/A | `observations.md` | removed (stash -> log) |
+| Inbox domain | `03_Inputs/` | `03_Inputs/` | `03_Inbox/` |
 
 ---
 
@@ -59,7 +60,7 @@ Before touching anything, understand what's there. Dispatch a scout agent (or mu
 - `_state/` folders inside walnuts (v3 era)
 - Flat walnut structures (key.md at walnut root, no `_core/` or `_kernel/`)
 - `src/` or other code directories orphaned at world root from website development
-- Any folder at world root that is NOT: `01_Archive/`, `02_Life/`, `03_Inputs/`, `04_Ventures/`, `05_Experiments/`, `People/`, `.alive/`, `.claude/`, or standard dotfiles
+- Any folder at world root that is NOT: `01_Archive/`, `02_Life/`, `03_Inbox/`, `04_Ventures/`, `05_Experiments/`, `People/`, `.alive/`, `.claude/`, or standard dotfiles
 
 **v2 structure detection (for v2->v3 upgrade):**
 - `bundles/` directory inside any walnut root (v2 -- bundles flatten to walnut root in v3)
@@ -80,7 +81,7 @@ Before touching anything, understand what's there. Dispatch a scout agent (or mu
 **Sync script audit:**
 - Read `preferences.yaml` `context_sources:` for configured sync scripts
 - Check `.claude/scripts/` for any scripts with hardcoded paths
-- Flag any that reference `_core/`, `_capsules/`, `.walnut/`, `companion.md`, `now.md`, `_kernel/_generated/`, `bundles/`, `tasks.md`, `observations.md`, or un-numbered domain paths like `inbox/` instead of `03_Inputs/`
+- Flag any that reference `_core/`, `_capsules/`, `.walnut/`, `companion.md`, `now.md`, `_kernel/_generated/`, `bundles/`, `tasks.md`, `observations.md`, or un-numbered domain paths like `inbox/` instead of `03_Inbox/`
 
 **Root-level now.md duplicates:**
 - Some walnuts have `now.md` at BOTH the walnut root AND inside `_core/`
@@ -369,7 +370,7 @@ Log every operation to `.alive/_generated/upgrade-log.yaml` with type, source, t
 17. Task count in `tasks.json` + `completed.json` matches original `tasks.md` checkbox count (minus flagged unparseable lines)
 
 **Root-level hygiene:**
-18. No unexpected folders at world root -- only `01_Archive/`, `02_Life/`, `03_Inputs/`, `04_Ventures/`, `05_Experiments/`, `People/`, `.alive/`, `.claude/`, and standard dotfiles should exist
+18. No unexpected folders at world root -- only `01_Archive/`, `02_Life/`, `03_Inbox/`, `04_Ventures/`, `05_Experiments/`, `People/`, `.alive/`, `.claude/`, and standard dotfiles should exist
 19. Flag any legacy folders that remain (un-numbered domains, _working, src, etc.)
 
 **Sync script audit:**

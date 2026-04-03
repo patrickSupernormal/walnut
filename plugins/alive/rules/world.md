@@ -19,7 +19,7 @@ Five domains. The letters are the folders. The file system IS the methodology.
 ```
 01_Archive/       A — Everything that was. Mirror paths. Graduation, not death.
 02_Life/          L — Personal. Goals, patterns. The foundation.
-03_Inputs/        I — Buffer only. Content arrives, gets routed out. Never work here.
+03_Inbox/        I — Buffer only. Content arrives, gets routed out. Never work here.
 04_Ventures/      V — Revenue intent. Businesses, clients, products.
 05_Experiments/   E — Testing grounds. Ideas, prototypes, explorations.
 People/           — Cross-cutting. Lives at world root, outside ALIVE numbering.
@@ -27,7 +27,7 @@ People/           — Cross-cutting. Lives at world root, outside ALIVE numberin
 
 **Life is the foundation.** Ventures and experiments serve life goals.
 
-**Inputs is a buffer.** Nothing lives here permanently. Route out within 48 hours.
+**Inbox is a buffer.** Nothing lives here permanently. Route out within 48 hours.
 
 **Archive mirrors paths.** `04_Ventures/old-project/` → `01_Archive/04_Ventures/old-project/`. Still indexed, still searchable. Just not on the dashboard.
 

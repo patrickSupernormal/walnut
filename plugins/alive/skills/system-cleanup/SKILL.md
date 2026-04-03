@@ -92,13 +92,13 @@ Pass: all 5 exist. Fail: any missing.
 
 ### 1b. Inputs Buffer
 
-Scan `03_Inputs/` for items older than 48 hours. Unrouted inputs may contain decisions or context affecting active walnuts.
+Scan `03_Inbox/` for items older than 48 hours. Unrouted inputs may contain decisions or context affecting active walnuts.
 
 Pass: empty or nothing older than 48h. Fail: items found.
 
 ```
 ╭─ 🐿️ tidy — unrouted inputs
-│  03_Inputs/ has 3 items older than 48 hours:
+│  03_Inbox/ has 3 items older than 48 hours:
 │   - vendor-brochure.pdf (3 days)
 │   - meeting-notes-feb20.md (4 days)
 │

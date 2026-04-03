@@ -16,7 +16,7 @@ links: []
 ## Domains
 
 - **02_Life/** — Personal. Goals, people, patterns.
-- **03_Inputs/** — Buffer. Content arrives, gets routed out.
+- **03_Inbox/** — Buffer. Content arrives, gets routed out.
 - **04_Ventures/** — Revenue intent. Businesses, clients, products.
 - **05_Experiments/** — Testing grounds. Ideas, prototypes.
 

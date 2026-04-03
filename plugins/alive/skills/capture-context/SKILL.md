@@ -1,6 +1,6 @@
 ---
 name: alive:capture-context
-description: "Use when external content arrives in the session — emails, transcripts, screenshots, documents, files, or in-session research worth keeping. Also use when there's nothing obvious to capture — the skill checks 03_Inputs/ for unrouted files and enters inbox scan mode. Stores raw content, routes to bundles, extracts tasks and insights into the stash."
+description: "Use when external content arrives in the session — emails, transcripts, screenshots, documents, files, or in-session research worth keeping. Also use when there's nothing obvious to capture — the skill checks 03_Inbox/ for unrouted files and enters inbox scan mode. Stores raw content, routes to bundles, extracts tasks and insights into the stash."
 user-invocable: true
 ---
 
@@ -128,15 +128,15 @@ The squirrel offers deep capture for content that's clearly rich:
 
 ## Inbox Scan Mode
 
-When capture is invoked with **no content in the conversation** — no pasted text, no dropped file, no "capture this" — fall back to checking `03_Inputs/`.
+When capture is invoked with **no content in the conversation** — no pasted text, no dropped file, no "capture this" — fall back to checking `03_Inbox/`.
 
 If empty: "Nothing to capture, and your inbox is clear."
 
 If items exist, enter inbox scan:
 
-1. **List** — scan `03_Inputs/` for non-system files (exclude `.DS_Store`, `.gitkeep`). Present numbered list with detected type and filename.
+1. **List** — scan `03_Inbox/` for non-system files (exclude `.DS_Store`, `.gitkeep`). Present numbered list with detected type and filename.
 2. **Process** — for each selected item: read the file, suggest destination walnut + bundle, rename garbage filenames per conventions, present for confirmation or redirect.
-3. **Capture** — route raw to the chosen bundle's `raw/`, update bundle `context.manifest.yaml` `sources:`, stash insights/tasks, remove original from `03_Inputs/`. If no bundle fits, create one or use `_inbox/`.
+3. **Capture** — route raw to the chosen bundle's `raw/`, update bundle `context.manifest.yaml` `sources:`, stash insights/tasks, remove original from `03_Inbox/`. If no bundle fits, create one or use `_inbox/`.
 4. **Continue or stop** — after each item: "N remaining. Next, or done for now?" Partial clearing is fine.
 
 ```
@@ -152,7 +152,7 @@ If items exist, enter inbox scan:
 
 Explicit inbox triggers (skip content check): "check inbox", "clear inputs", "what's in my inbox".
 
-The `alive-inbox-check` hook also nudges after every save if `03_Inputs/` has items — passive reminder without requiring the human to invoke capture.
+The `alive-inbox-check` hook also nudges after every save if `03_Inbox/` has items — passive reminder without requiring the human to invoke capture.
 
 ---
 

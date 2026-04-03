@@ -19,7 +19,7 @@ NOT a database dump. NOT a flat list. A living view of their world, grouped by w
 3. Build the tree from the index — parent/child relationships from `parent:` field
 4. **Lightweight fresh checks** — one Bash call each, no subagents, no Explore agents:
    - **Unsigned squirrels with stash:** already in the index as `unsigned_with_stash:`. If non-zero, surface in the Attention section. No bash loop needed.
-   - **Unrouted inputs:** `ls 03_Inputs/ 2>/dev/null | grep -v '^\.' | grep -v '^Icon'` — just the filenames, no deep reads.
+   - **Unrouted inputs:** `ls 03_Inbox/ 2>/dev/null | grep -v '^\.' | grep -v '^Icon'` — just the filenames, no deep reads.
    - **API context:** only if context sources are listed in the session start injection (already in your context from the hook — do NOT re-read preferences.yaml).
 5. Compute attention items from fresh checks + index staleness signals
 
@@ -81,7 +81,7 @@ Things that need your decision or action. Not walnuts — specific issues.
 │
 │   → 3 unread emails from Orion (Gmail, 2 days)
 │   → Unsigned session on nova-station (squirrel:a3f7, 6 stash items)
-│   → 03_Inputs/ has 2 items older than 48 hours
+│   → 03_Inbox/ has 2 items older than 48 hours
 │   → flux-engine quiet for 12 days (rhythm: weekly)
 │   → 4 working files older than 30 days across 3 walnuts
 │
@@ -89,7 +89,7 @@ Things that need your decision or action. Not walnuts — specific issues.
 ```
 
 Sources:
-- **Inputs buffer (HIGH PRIORITY)** — anything in `03_Inputs/` older than 48 hours. These are unrouted context that could impact active walnuts TODAY. The squirrel should stress this to the human: "You have unrouted inputs. These might contain decisions, tasks, or context that affects your active work. Route them before diving into a walnut."
+- **Inputs buffer (HIGH PRIORITY)** — anything in `03_Inbox/` older than 48 hours. These are unrouted context that could impact active walnuts TODAY. The squirrel should stress this to the human: "You have unrouted inputs. These might contain decisions, tasks, or context that affects your active work. Route them before diving into a walnut."
 - API context (Gmail unread, Slack mentions, Calendar upcoming)
 - Unsigned squirrel entries with stash items
 - Stale walnuts (quiet/waiting)
