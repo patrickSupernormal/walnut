@@ -18,12 +18,14 @@ Five domains. The letters are the folders. The file system IS the methodology.
 
 ```
 01_Archive/       A — Everything that was. Mirror paths. Graduation, not death.
-02_Life/          L — Personal. Goals, patterns. The foundation.
+02_Life/          L — Personal. Goals, patterns, people. The foundation.
 03_Inbox/        I — Buffer only. Content arrives, gets routed out. Never work here.
 04_Ventures/      V — Revenue intent. Businesses, clients, products.
 05_Experiments/   E — Testing grounds. Ideas, prototypes, explorations.
 
 ```
+
+**Domain folders are NOT walnuts.** The five ALIVE folders are containers — they hold walnuts, they don't have `_kernel/` themselves. Never create `_kernel/` inside a domain folder. If `02_Life/_kernel/` exists, it's legacy cruft.
 
 **Life is the foundation.** Ventures and experiments serve life goals.
 
